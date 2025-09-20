@@ -1,73 +1,61 @@
 #include<iostream>
 #include <fstream>
 #include<vector>
-
+#include<string>
+#include <sstream>
 
 using namespace std;
 
-struct LISTS {
-	vector<vector<int>> vertical;
-	vector<vector<int>> horizontal;
-};
 
 
-void solve(int n, int m, struct LISTS lists) {
+class Nonogram
+{
+private:
+	int numberDimensions;
+	vector<int> dimensionsSize;
 
-}
+	// Hint to solve dimension dim, over all possible other dimensions
+	/*
+		Example, in a 2 x 2
 
+		* *
+		´ ´
+		hints[0] gives {2, 0}
+		hints[1] gives {1 ,1}
 
-struct LISTS* build_lists(vector<vector<int>>& grid){
-	struct LISTS* lists = new struct LISTS;
-	int n = grid.size();
-	int m = grid[0].size();
-	lists->horizontal = vector<vector<int>>(n);
-	lists->vertical = vector<vector<int>>(m);
+	*/
+	vector<vector<vector<int>>> hints;
+	vector<int> data;
+	vector<int> strides;
+	vector<vector<int>> hintStrides;
 
-	
-	int total_numbers;
-	int numbers[max(n, m) / 2 + 1];
-
-	// Build horizonta lists
-	for (int i = 0; i < n; i++) {
-		
-		int last_number = grid[i][0];
-		int segment_size = (last_number == 1) ? 1 : 0;
-		total_numbers = (last_number == 1) ? 1 : 0;
-		for (int j = 1; j < m; j++) {
-			if (grid[i][j]) { // 1
-				if (grid[i][j] == last_number) {
-					segment_size++;
-				} else {
-					// New block
-					segment_size = 1;
-					total_numbers++;
-				}
-			} else { // 0
-				if (grid[i][j] != last_number) { // 1 and then 0
-					numbers[total_numbers - 1] = segment_size;
-				}
-			}
-			last_number = grid[i][j];
+	// For dimensions: x, y, z, ...
+	void buildStrides() {
+		/*
+		this->strides = vector<int>(this->numberDimensions);
+		this->strides[this->numberDimensions - 1] = 1;
+		for (int i = this->numberDimensions - 2; i >= 0; i--) {
+			this->strides[i] = this->strides[i + 1] * this->dimensionsSize[i + 1];
 		}
-		if (last_number == 1) numbers[total_numbers - 1] = segment_size; // Last correction
-
-		if (total_numbers) {
-			for (int k = 0; k < total_numbers; k++) lists->horizontal[i].push_back(numbers[k]);
-		} else {
-			// No squares
-			lists->horizontal[i].push_back(0);
+		*/
+		this->strides = vector<int>(this->numberDimensions);
+		this->strides[0] = 1;
+		for (int i = 1; i < this->numberDimensions; i++) {
+			this->strides[i] = this->strides[i - 1] * this->dimensionsSize[i - 1];
 		}
 	}
 
-	// Vertical lists
-	for (int j = 0; j < m; j++) {
-		
-		int last_number = grid[0][j];
+
+	vector<int> computeLine(vector<int>& line) {
+		int n = line.size();
+
+		int last_number = line[0];
 		int segment_size = (last_number == 1) ? 1 : 0;
-		total_numbers = (last_number == 1) ? 1 : 0;
+		int total_numbers = (last_number == 1) ? 1 : 0;
+		vector<int> hints;
 		for (int i = 1; i < n; i++) {
-			if (grid[i][j]) { // 1
-				if (grid[i][j] == last_number) {
+			if (line[i]) { // 1
+				if (line[i] == last_number) {
 					segment_size++;
 				} else {
 					// New block
@@ -75,82 +63,259 @@ struct LISTS* build_lists(vector<vector<int>>& grid){
 					total_numbers++;
 				}
 			} else { // 0
-				if (grid[i][j] != last_number) { // 1 and then 0
-					numbers[total_numbers - 1] = segment_size;
+				if (line[i] != last_number) { // 1 and then 0
+					hints.push_back(segment_size);
 				}
 			}
-			last_number = grid[i][j];
+			last_number = line[i];
 		}
-		if (last_number == 1) numbers[total_numbers - 1] = segment_size; // Last correction
+		if (last_number == 1) hints.push_back(segment_size); // Last correction
+		if (hints.size() == 0) hints.push_back(0);
 
-		if (total_numbers) {
-			for (int k = 0; k < total_numbers; k++) lists->vertical[j].push_back(numbers[k]);
-		} else {
-			// No squares
-			lists->vertical[j].push_back(0);
-		}
+		return hints;
+			
 	}
-
-	// Check them
-	for (vector<int> v : lists->vertical){
-		for ( int e : v)
-			cout << e << " ";
-		cout << endl;
-	}cout << endl;
-	for (vector<int> v : lists->horizontal) {
-		for ( int e : v)
-			cout << e << " ";
-		cout << endl;
-	}
-		
-
-
-	return lists;
-}
-
-
-struct LISTS* read_puzzle(ifstream& file) {
-	int n = 0, m = 0;
-	if (!(file >> n >> m)) return NULL;
-	if (!n || !m) return NULL;
-	printf("%d %d\n", n,m);
-	vector<vector<int>> grid(n, vector<int>(m));
-
-	for (int i = 0; i < n; i ++) {
-		for (int j = 0; j < m; j++) {
-			if (! (file >> grid[i][j])) return NULL;
-		}
-	}
-	file.close();
-
-	for (int i = 0; i < n; i ++) {
-		for (int j = 0; j < m; j++) {
-			printf("%d ", grid[i][j]);
-		}printf("\n");
-	}printf("\n");
 	
-	return build_lists(grid);
-}
 
-void read_lists(ifstream& file) {
-	int n = 0, m = 0;
+	void buildLists() {
 
-	file.close();
-}
+		long long totalMult = 1;
+		for (int s : this->dimensionsSize) totalMult *= s;
+
+		this->hints = vector<vector<vector<int>>>(this->numberDimensions);
+		for (int d = 0; d < this->numberDimensions; d++) {
+
+			int length = this->dimensionsSize[d];   // how long each line is
+			int count  = totalMult / length;        // how many lines along d
+			int step   = this->strides[d];          // stride along d
+			this->hints[d] = vector<vector<int>>(count);
+
+			for (int h = 0; h < count; h++) {
+				vector<int> line;
+				line.reserve(length);
+
+				// compute starting offset in flat data
+		        // "h" encodes the fixed coordinates of all other dims
+		        int offset = 0;
+		        int tmp = h;
+		        for (int k = 0; k < this->numberDimensions; k++) {
+		            if (k == d) continue;
+		            int coord = tmp % this->dimensionsSize[k];
+		            tmp /= this->dimensionsSize[k];
+		            offset += coord * this->strides[k];
+		        }
+
+		        // collect values along dimension d
+		        for (int i = 0; i < length; i++) {
+		            line.push_back(this->data[offset + i * step]);
+		        }
+
+
+		        this->hints[d][h] = computeLine(line);
+
+			}
+			
+		}
+
+		/*
+		for(int i = 0; i < dimensionsSize[0]; i++) {
+			for (int j = 0; j < dimensionsSize[1]; j++) {
+				cout << getValue({i,j}) << " ";
+			}cout << endl;
+		}
+		*/
+
+		// hintStrides[d][k] = stride contribution of dimension k when building hint index for dim d
+		this->hintStrides = vector<vector<int>>(this->numberDimensions, vector<int>(this->numberDimensions, 0));
+		for (int d = 0; d < numberDimensions; d++) {
+		    int factor = 1;
+		    for (int k = 0; k < numberDimensions; k++) {
+		        if (k == d) continue;
+		        this->hintStrides[d][k] = factor;
+		        factor *= dimensionsSize[k];
+		    }
+		}
+	}
+
+	bool solve() { return false;}
+
+	int getHintIndex(const vector<int>& idx, int dim) {
+	    int h = 0;
+	    for (int i = 0; i < numberDimensions; i++) {
+	        if (i == dim) continue;
+	        h += idx[i] * hintStrides[dim][i];
+	    }
+	    return h;
+	}
+
+
+	
+public:
+	Nonogram(){};
+	~Nonogram(){};
+
+	// In which direction dim would you like to solve and which of all possible lines
+	vector<int> getHintLine(const vector<int>& idx, int dim) {
+		if (idx.size() != this->numberDimensions - 1) {
+			throw std::invalid_argument("idx size must be numberDimensions - 1");
+		}
+
+		// Add trash to dim position
+	    int ri = 0; // index into reducedIdx
+	    vector<int> new_idx(this->numberDimensions);
+	    for (int j = 0; j < this->numberDimensions; j++) {
+	        if (j == dim) continue;
+	        new_idx[j] = idx[ri];
+	        ri++;
+	    }
+
+	    int h = getHintIndex(new_idx, dim);
+	    return hints[dim][h];
+	}
+
+	int getValue(vector<int> idx) {
+		if (idx.size() != this->numberDimensions) return -1;
+
+		int dataPos = 0;
+		for (int i = 0; i < this->numberDimensions; i++) {
+			dataPos += idx[i] * this->strides[i];
+		}
+		if (dataPos >= this->data.size()) return -1;
+		return this->data[dataPos];
+	}
+
+	bool clean() {
+		numberDimensions = 0;
+		dimensionsSize = vector<int>();
+		hints = vector<vector<vector<int>>>();
+		data = vector<int>();
+		return false;
+	}
+
+	
+
+	bool buildFromSquares(string pathToPuzzle) {
+		ifstream file(pathToPuzzle);
+		if (!file) return false;
+		if (!(file >> this->numberDimensions)) return clean();
+		
+		// Parse dimension size
+		this->dimensionsSize = vector<int>(this->numberDimensions);
+
+		
+		int total = 1;
+		for (int i = 0; i < this->numberDimensions; i++) {
+			if (!(file >> this->dimensionsSize[i])) return clean();
+			total *= dimensionsSize[i];
+		}
+		cout << this->numberDimensions << endl;
+		for (int dim : this->dimensionsSize) cout << dim << " ";
+		cout << endl << endl;
+
+		// For idx calculations
+		this->buildStrides();
+
+		// Parse data
+		this->data = vector<int>(total);
+		for (int i = 0; i < total; i++)
+			if (!(file >> this->data[i])) return clean();
+
+
+		for (int i = 0; i < this->dimensionsSize[0]; i++){
+			for (int j = 0; j < this->dimensionsSize[1]; j++) {
+				cout << data[i*this->strides[0] + j] << " "; 
+			}cout << endl;
+		}cout << endl;
+
+
+		this->buildLists();
+
+		return solve();
+	}
+
+	bool buildFromLists(string pathToLists) {
+		ifstream file(pathToLists);
+		if (!file) return false;
+
+		if (!(file >> this->numberDimensions)) return clean();
+		
+		// Parse dimension size
+		this->dimensionsSize = vector<int>(this->numberDimensions);
+		for (int i = 0; i < this->numberDimensions; i++) 
+			if (!(file >> this->dimensionsSize[i])) return clean();
+
+		this->buildStrides();
+		
+		// Parse hints per dimension
+		this->hints = vector<vector<vector<int>>>(this->numberDimensions);
+		string line;
+		for (int d = 0; d < this->numberDimensions; d++) {
+			int size = this->dimensionsSize[d];
+			this->hints[d] = vector<vector<int>>(size);
+			for (int i = 0; i < size; i++) {
+				if (!getline(file, line)) return clean();
+				istringstream iss(line);
+				vector<int> currHints;
+				int val;
+				while(iss >> val) currHints.push_back(val);
+				this->hints[d][i] = currHints;
+			}
+
+			
+		}
+
+		return solve();
+	}
+
+	// Getters
+	int getDimensions() { return numberDimensions;}
+
+	// Copy
+	vector<int> getData() {return data;}
+	int getDimensionSize(int i) { 
+		if (i >= this->dimensionsSize.size()) return -1;
+		return dimensionsSize[i];
+	}
+	vector<vector<int>> getHintsToSolveDimension(int i) {
+		if (i >= this->dimensionsSize.size()) return vector<vector<int>>();
+		return hints[i];
+	}
+	vector<int> getHintsDimensionRow(int dim, int r) {
+		if (dim >= this->dimensionsSize.size()) return vector<int>();
+		if (r >= this->hints[dim].size()) return  vector<int>();
+		return hints[dim][r];
+	}
+
+	
+};
 
 
 
 
 int main(int argc, char const *argv[])
 {
-	ifstream nonogram("Examples/nonogram.txt");
-	if (!nonogram.is_open()) { // check if opened successfully
-        std::cerr << "Could not open the file!\n";
-        return 1;
-    }
+	if (argc < 2) return 1;
+	string path = argv[1];
+	Nonogram nonogram;
+	nonogram.buildFromSquares(path);
 
-	struct LISTS* lists = read_puzzle(nonogram);
 
-	delete lists;
+	for (int i = 0; i < nonogram.getDimensions(); i++) {
+		vector<vector<int>> temp1 = nonogram.getHintsToSolveDimension(i);
+		for (vector<int> v : temp1) {
+			for (int e : v) cout << e << " ";
+				cout << endl;
+		}cout << endl;
+	}
+
+	
+
+/*
+	cout << endl;
+	vector<int> temp = nonogram.getHintLine({1}, 0);
+	for (int e : temp) cout << e << " ";
+		cout << endl;
+		*/
 	return 0;
+
 }
