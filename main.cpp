@@ -20,28 +20,20 @@ private:
 
 		* *
 		´ ´
-		hints[0] gives {2, 0}
-		hints[1] gives {1 ,1}
+		hints[0][1] gives {1} because there is 1 * on column 1 
+		hints[1][0] gives {2} because there are 2 * on row 0
 
 	*/
-	vector<vector<vector<int>>> hints;
+	vector<vector<vector<int>>> hints; // Dimension -> Row -> hint -> number
 	vector<int> data;
 	vector<int> strides;
 	vector<vector<int>> hintStrides;
 
-	// For dimensions: x, y, z, ...
 	void buildStrides() {
-		/*
 		this->strides = vector<int>(this->numberDimensions);
 		this->strides[this->numberDimensions - 1] = 1;
 		for (int i = this->numberDimensions - 2; i >= 0; i--) {
 			this->strides[i] = this->strides[i + 1] * this->dimensionsSize[i + 1];
-		}
-		*/
-		this->strides = vector<int>(this->numberDimensions);
-		this->strides[0] = 1;
-		for (int i = 1; i < this->numberDimensions; i++) {
-			this->strides[i] = this->strides[i - 1] * this->dimensionsSize[i - 1];
 		}
 	}
 
@@ -131,7 +123,7 @@ private:
 		    int factor = 1;
 		    for (int k = 0; k < numberDimensions; k++) {
 		        if (k == d) continue;
-		        this->hintStrides[d][k] = factor;
+		        hintStrides[d][k] = factor;
 		        factor *= dimensionsSize[k];
 		    }
 		}
@@ -154,7 +146,6 @@ public:
 	Nonogram(){};
 	~Nonogram(){};
 
-	// In which direction dim would you like to solve and which of all possible lines
 	vector<int> getHintLine(const vector<int>& idx, int dim) {
 		if (idx.size() != this->numberDimensions - 1) {
 			throw std::invalid_argument("idx size must be numberDimensions - 1");
@@ -202,15 +193,13 @@ public:
 		// Parse dimension size
 		this->dimensionsSize = vector<int>(this->numberDimensions);
 
-		
+		cout << this->numberDimensions << endl;
 		int total = 1;
 		for (int i = 0; i < this->numberDimensions; i++) {
 			if (!(file >> this->dimensionsSize[i])) return clean();
 			total *= dimensionsSize[i];
 		}
-		cout << this->numberDimensions << endl;
-		for (int dim : this->dimensionsSize) cout << dim << " ";
-		cout << endl << endl;
+
 
 		// For idx calculations
 		this->buildStrides();
@@ -220,17 +209,9 @@ public:
 		for (int i = 0; i < total; i++)
 			if (!(file >> this->data[i])) return clean();
 
-
-		for (int i = 0; i < this->dimensionsSize[0]; i++){
-			for (int j = 0; j < this->dimensionsSize[1]; j++) {
-				cout << data[i*this->strides[0] + j] << " "; 
-			}cout << endl;
-		}cout << endl;
-
-
 		this->buildLists();
 
-		return solve();
+		return true;
 	}
 
 	bool buildFromLists(string pathToLists) {
@@ -264,7 +245,7 @@ public:
 			
 		}
 
-		return solve();
+		return true;
 	}
 
 	// Getters
@@ -276,7 +257,7 @@ public:
 		if (i >= this->dimensionsSize.size()) return -1;
 		return dimensionsSize[i];
 	}
-	vector<vector<int>> getHintsToSolveDimension(int i) {
+	vector<vector<int>> getDimensionsHint(int i) {
 		if (i >= this->dimensionsSize.size()) return vector<vector<int>>();
 		return hints[i];
 	}
@@ -299,23 +280,15 @@ int main(int argc, char const *argv[])
 	Nonogram nonogram;
 	nonogram.buildFromSquares(path);
 
-
-	for (int i = 0; i < nonogram.getDimensions(); i++) {
-		vector<vector<int>> temp1 = nonogram.getHintsToSolveDimension(i);
-		for (vector<int> v : temp1) {
-			for (int e : v) cout << e << " ";
-				cout << endl;
-		}cout << endl;
+	vector<vector<int>> temp1 = nonogram.getDimensionsHint(1);
+	for (vector<int> v : temp1) {
+		for (int e : v) cout << e << " ";
+			cout << endl;
 	}
-
-	
-
 /*
-	cout << endl;
-	vector<int> temp = nonogram.getHintLine({1}, 0);
+	vector<int> temp = nonogram.getHintLine({3}, 0);
 	for (int e : temp) cout << e << " ";
 		cout << endl;
-		*/
 	return 0;
-
+*/
 }
