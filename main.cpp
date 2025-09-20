@@ -20,20 +20,21 @@ private:
 
 		* *
 		´ ´
-		hints[0][1] gives {1} because there is 1 * on column 1 
-		hints[1][0] gives {2} because there are 2 * on row 0
+		hints[0] gives {2, 0}
+		hints[1] gives {1 ,1}
 
 	*/
-	vector<vector<vector<int>>> hints; // Dimension -> Row -> hint -> number
+	vector<vector<vector<int>>> hints;
 	vector<int> data;
 	vector<int> strides;
 	vector<vector<int>> hintStrides;
 
+	// For dimensions: x, y, z, ...
 	void buildStrides() {
 		this->strides = vector<int>(this->numberDimensions);
-		this->strides[this->numberDimensions - 1] = 1;
-		for (int i = this->numberDimensions - 2; i >= 0; i--) {
-			this->strides[i] = this->strides[i + 1] * this->dimensionsSize[i + 1];
+		this->strides[0] = 1;
+		for (int i = 1; i < this->numberDimensions; i++) {
+			this->strides[i] = this->strides[i - 1] * this->dimensionsSize[i - 1];
 		}
 	}
 
@@ -70,7 +71,6 @@ private:
 	
 
 	void buildLists() {
-
 		long long totalMult = 1;
 		for (int s : this->dimensionsSize) totalMult *= s;
 
@@ -116,18 +116,22 @@ private:
 			}cout << endl;
 		}
 		*/
+		
+	}
 
+	void buildHintStrides() {
 		// hintStrides[d][k] = stride contribution of dimension k when building hint index for dim d
 		this->hintStrides = vector<vector<int>>(this->numberDimensions, vector<int>(this->numberDimensions, 0));
 		for (int d = 0; d < numberDimensions; d++) {
 		    int factor = 1;
 		    for (int k = 0; k < numberDimensions; k++) {
 		        if (k == d) continue;
-		        hintStrides[d][k] = factor;
+		        this->hintStrides[d][k] = factor;
 		        factor *= dimensionsSize[k];
 		    }
 		}
 	}
+
 
 	bool solve() { return false;}
 
@@ -146,6 +150,7 @@ public:
 	Nonogram(){};
 	~Nonogram(){};
 
+	// In which direction dim would you like to solve and which of all possible lines
 	vector<int> getHintLine(const vector<int>& idx, int dim) {
 		if (idx.size() != this->numberDimensions - 1) {
 			throw std::invalid_argument("idx size must be numberDimensions - 1");
@@ -186,6 +191,7 @@ public:
 	
 
 	bool buildFromSquares(string pathToPuzzle) {
+		clean();
 		ifstream file(pathToPuzzle);
 		if (!file) return false;
 		if (!(file >> this->numberDimensions)) return clean();
@@ -193,13 +199,15 @@ public:
 		// Parse dimension size
 		this->dimensionsSize = vector<int>(this->numberDimensions);
 
-		cout << this->numberDimensions << endl;
+		
 		int total = 1;
 		for (int i = 0; i < this->numberDimensions; i++) {
 			if (!(file >> this->dimensionsSize[i])) return clean();
 			total *= dimensionsSize[i];
 		}
-
+		cout << this->numberDimensions << endl;
+		for (int dim : this->dimensionsSize) cout << dim << " ";
+		cout << endl << endl;
 
 		// For idx calculations
 		this->buildStrides();
@@ -209,31 +217,51 @@ public:
 		for (int i = 0; i < total; i++)
 			if (!(file >> this->data[i])) return clean();
 
-		this->buildLists();
+		/*
+		for (int i = 0; i < this->dimensionsSize[0]; i++){
+			for (int j = 0; j < this->dimensionsSize[1]; j++) {
+				cout << data[i*this->strides[0] + j] << " "; 
+			}cout << endl;
+		}cout << endl;
+		*/
 
-		return true;
+		this->buildLists();
+		this->buildHintStrides();
+
+		return solve();
 	}
 
 	bool buildFromLists(string pathToLists) {
+		clean();
 		ifstream file(pathToLists);
 		if (!file) return false;
 
-		if (!(file >> this->numberDimensions)) return clean();
+		string line;
+		getline(file, line);
+		istringstream firstLine(line);
+
+		if (!(firstLine >> this->numberDimensions)) return clean();
 		
 		// Parse dimension size
+		long long total_hints = 1;
 		this->dimensionsSize = vector<int>(this->numberDimensions);
-		for (int i = 0; i < this->numberDimensions; i++) 
-			if (!(file >> this->dimensionsSize[i])) return clean();
+		for (int i = 0; i < this->numberDimensions; i++) {
+			if (!(firstLine >> this->dimensionsSize[i])) return clean();
+			total_hints *= this->dimensionsSize[i];
+		}
+		cout << this->numberDimensions << endl;
+		for (int dim : this->dimensionsSize) cout << dim << " ";
+		cout <<  "Total hints: "<< total_hints << endl;
+		cout << endl;
 
 		this->buildStrides();
 		
 		// Parse hints per dimension
 		this->hints = vector<vector<vector<int>>>(this->numberDimensions);
-		string line;
 		for (int d = 0; d < this->numberDimensions; d++) {
-			int size = this->dimensionsSize[d];
-			this->hints[d] = vector<vector<int>>(size);
-			for (int i = 0; i < size; i++) {
+			int count = total_hints / this->dimensionsSize[d];
+			this->hints[d] = vector<vector<int>>(count);
+			for (int i = 0; i < count; i++) {
 				if (!getline(file, line)) return clean();
 				istringstream iss(line);
 				vector<int> currHints;
@@ -245,7 +273,9 @@ public:
 			
 		}
 
-		return true;
+		this->buildHintStrides();
+
+		return solve();
 	}
 
 	// Getters
@@ -257,7 +287,7 @@ public:
 		if (i >= this->dimensionsSize.size()) return -1;
 		return dimensionsSize[i];
 	}
-	vector<vector<int>> getDimensionsHint(int i) {
+	vector<vector<int>> getHintsToSolveDimension(int i) {
 		if (i >= this->dimensionsSize.size()) return vector<vector<int>>();
 		return hints[i];
 	}
@@ -276,19 +306,39 @@ public:
 int main(int argc, char const *argv[])
 {
 	if (argc < 2) return 1;
-	string path = argv[1];
 	Nonogram nonogram;
+	string path;
+	
+	cout << "From grid:" << endl;
+	path = argv[1];
 	nonogram.buildFromSquares(path);
-
-	vector<vector<int>> temp1 = nonogram.getDimensionsHint(1);
-	for (vector<int> v : temp1) {
-		for (int e : v) cout << e << " ";
-			cout << endl;
+	for (int i = 0; i < nonogram.getDimensions(); i++) {
+		vector<vector<int>> temp1 = nonogram.getHintsToSolveDimension(i);
+		for (vector<int> v : temp1) {
+			for (int e : v) cout << e << " ";
+				cout << endl;
+		}cout << endl;
 	}
+
+	cout << "From lists:" << endl;
+	path = argv[2];
+	nonogram.buildFromLists(path);
+	for (int i = 0; i < nonogram.getDimensions(); i++) {
+		vector<vector<int>> temp1 = nonogram.getHintsToSolveDimension(i);
+		for (vector<int> v : temp1) {
+			for (int e : v) cout << e << " ";
+				cout << endl;
+		}cout << endl;
+	}
+
+	
+
 /*
-	vector<int> temp = nonogram.getHintLine({3}, 0);
+	cout << endl;
+	vector<int> temp = nonogram.getHintLine({1}, 0);
 	for (int e : temp) cout << e << " ";
 		cout << endl;
+		*/
 	return 0;
-*/
+
 }

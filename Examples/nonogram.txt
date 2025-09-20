@@ -1,2 +1,28 @@
-3 5 0 1 1 1 0 1 1 0 1 1 0 0 1 0 1
 
+
+
+
+2 5 3
+0 1 1 1 0
+1 1 0 1 1
+0 0 1 0 1
+x-y with (0,0) in the upper right corner
+
+2 3 5
+0 1 1 1 0
+1 1 0 1 1
+0 0 1 0 1
+Row-colum
+
+- * * * -
+* * - * *
+- - * - *
+
+2 dimensiones
+La primera mide 5 (horizontal / x)
+La segunda mide 3 (vertical / y)
+
+
+2 2 2
+1 1
+0 0
