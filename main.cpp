@@ -248,18 +248,17 @@ private:
 	}
 
 	bool lineSolver(int dim, vector<int>& idx, vector<int>& modifiedEntries) {
-		cout << ":c"<< endl;
 		vector<int> line = getLine(dim, idx, false);
 		line.insert(line.begin(), {0}); 
 		vector<int> lineHints = getHintLine(dim, idx);
-
+/*
 		cout << "Line: "<< endl;
 		for (int e : line) cout << e  << " ";
 			cout << endl;
 		cout << "Hints:" << endl;
 		for (int e : lineHints) cout << e  << " ";
 			cout << endl;
-
+*/
 		int k = lineHints.size();
 		int n = line.size() - 1;
 
@@ -267,7 +266,6 @@ private:
 		vector<vector<int>> dpTable(n +1 , vector<int>(k+1, -1)); 
 		//if (!Fix(n - 1,k - 1, line, lineHints, dpTable)) return false;
 		if (!Fix(n, k, line, lineHints, dpTable)) return false;
-		cout << ":?? "  << endl;
 
 		bool changedInPass = true;
 	    bool totalChanged = false;
@@ -281,14 +279,9 @@ private:
 		if (totalChanged) {
 			line.erase(line.begin());
 			writeLine(dim, idx, line);
-
-
-			this->printSolved();
-
-
 			return true;
 		}
-		cout << "Nothig aout of this one" << endl;
+		//cout << "Nothig aout of this one" << endl;
 		return false;
 	}
 
@@ -401,9 +394,6 @@ private:
 		        	Item toSolve = {heuristic, {dim, coords}};
 		        	nextAnalyze.push(toSolve);
 		        }
-
-
-		        
 		    }
 		}
 		
@@ -420,7 +410,7 @@ private:
  
 			bool solvedAnything = lineSolver(values.first, values.second, modifiedEntries);
 			if (!solvedAnything) continue;
-			this->printSolved();
+			//this->printSolved();
 
 			// Build the next ones to try
 			
@@ -534,9 +524,11 @@ public:
 			if (!(file >> this->dimensionsSize[i])) return clean();
 			total *= dimensionsSize[i];
 		}
+		/*
 		cout << this->numberDimensions << endl;
 		for (int dim : this->dimensionsSize) cout << dim << " ";
 		cout << endl << endl;
+		*/
 
 		// For idx calculations
 		this->buildStrides();
@@ -570,10 +562,12 @@ public:
 			if (!(firstLine >> this->dimensionsSize[i])) return clean();
 			total_hints *= this->dimensionsSize[i];
 		}
+		/*
 		cout << this->numberDimensions << endl;
 		for (int dim : this->dimensionsSize) cout << dim << " ";
 		cout <<  "Total hints: "<< total_hints << endl;
 		cout << endl;
+		*/
 
 		this->buildStrides();
 		
@@ -702,6 +696,7 @@ int main(int argc, char const *argv[])
 	cout << "From grid:" << endl;
 	path = argv[1];
 	nonogram.buildFromSquares(path);
+	/*
 	for (int i = 0; i < nonogram.getDimensions(); i++) {
 		vector<vector<int>> temp1 = nonogram.getHintsToSolveDimension(i);
 		for (vector<int> v : temp1) {
@@ -709,6 +704,7 @@ int main(int argc, char const *argv[])
 				cout << endl;
 		}cout << endl;
 	}
+	*/
 /*
 	vector<int> idx = {-1, 1};
 	vector<int> line = nonogram.getLine(0, idx);
@@ -729,7 +725,7 @@ int main(int argc, char const *argv[])
 	nonogram.printOriginal();
 	nonogram.printSolved();
 
-
+/*
 	cout << "From lists:" << endl;
 	path = argv[2];
 	if (nonogram.buildFromLists(path)) {
@@ -746,7 +742,7 @@ int main(int argc, char const *argv[])
 
 	nonogram.printOriginal();
 	nonogram.printSolved();
-
+*/
 /*
 	cout << endl;
 	vector<int> temp = nonogram.getHintLine({1}, 0);
