@@ -157,80 +157,139 @@ private:
 
 	}
 
+	// From "An Efficient Approach to Solving Nonograms" by Chen Wu et al.
+	int Fix(int i, int j, vector<int>& line, vector<int>& lineHints, vector<vector<int>>& dpTable) {
+		if (dpTable[i][j] >= 0) return dpTable[i][j];
 
-	// Solves as much as possible from the line
-	// returns false if nothing was placed or multiple solutions exists
+		// Base cases
+	    if (j == 0) {
+	        // If there are no more hints, the remaining cells must all be white (0)
+	        for (int k = 1; k <= i; ++k) {
+	            if (line[k] == 1) {
+	                dpTable[i][j] = 0;
+	                return false;
+	            }
+	        }
+	        dpTable[i][j] = 1;
+	        return true;
+	    }
+	    if (i == 0) {
+	        // We have hints left but no cells. This is only valid if we have no hints (handled above).
+	        dpTable[i][j] = 0;
+	        return false;
+	    }
+
+		//dpTable[i][j] = Fix0(i,j, line, lineHints, dpTable) || Fix1(i,j, line, lineHints, dpTable);
+		bool res = false;
+
+		// Option 1: cell i is white (0). Allowed if it's not explicitly black.
+		if (line[i] != 1) res = Fix(i - 1, j, line, lineHints, dpTable);
+
+		// Option 2: place j-th block so it ends at i (block length h_j = lineHints[j-1])
+		int h_j = lineHints[j-1];
+		// Enough celss to fit
+		if (!res && i >= h_j) {
+			bool isBlock = true;
+			for (int k = i - h_j + 1; k <= i; ++k) {
+	            if (line[k] == 0) { // Should be 1 or unknown, but if it's 0, it can't be a block.
+	                isBlock = false;
+	                break;
+	            }
+	        }
+
+	        if (isBlock) {
+	        	int leftPos = i - h_j; // cell right before the block (0 if block starts at 1)
+	        	if (leftPos == 0) { // The block starts at the beginning of the line
+	                res = res || Fix(0, j - 1, line, lineHints, dpTable);
+	            } else if (line[i - h_j] != 1) { // separator cell (leftPos) must NOT be black (cannot be 1).
+	                res = res || Fix(i - h_j - 1, j - 1, line, lineHints, dpTable);
+	            }
+	        }
+		}
+
+		dpTable[i][j] = res;
+		return res;
+	}
+
+	bool Coloring(int n, int k, vector<int>& line, vector<int>& lineHints, vector<int>& modifiedEntries ) {
+	    bool changed = false;
+
+	    for (int i = 1; i <= n; ++i) {
+	        // If the cell is already determined, skip it
+	        if (line[i] != -1) continue;
+
+	        // Try coloring the cell as '1' (black)
+	        line[i] = 1;
+	        vector<vector<int>> dpTable1(n + 1, vector<int>(k + 1, -1));
+	        bool possible1 = Fix(n, k, line, lineHints, dpTable1);
+
+	        // Try coloring the cell as '0' (white)
+	        line[i] = 0;
+	        vector<vector<int>> dpTable0(n + 1, vector<int>(k + 1, -1));
+	        bool possible0 = Fix(n, k, line, lineHints, dpTable0);;
+
+	        // Apply the deduction rules
+	        if (possible1 && !possible0) {
+	            // It must be a '1' because '0' is not a valid solution
+	            line[i] = 1;
+	            modifiedEntries.push_back(i-1);
+	            changed = true;
+	        } else if (!possible1 && possible0) {
+	            // It must be a '0' because '1' is not a valid solution
+	            line[i] = 0;
+	            modifiedEntries.push_back(i-1);
+	            changed = true;
+	        } else {
+	        	line[i] = -1;
+	        }
+	    }
+
+	    return changed;
+	}
+
 	bool lineSolver(int dim, vector<int>& idx, vector<int>& modifiedEntries) {
-		vector<int> line = this->getLine(dim, idx, false);
-		vector<int> lineHints = this->getHintLine(dim, idx);
+		cout << ":c"<< endl;
+		vector<int> line = getLine(dim, idx, false);
+		line.insert(line.begin(), {0}); 
+		vector<int> lineHints = getHintLine(dim, idx);
 
-		int n = line.size();
+		cout << "Line: "<< endl;
+		for (int e : line) cout << e  << " ";
+			cout << endl;
+		cout << "Hints:" << endl;
+		for (int e : lineHints) cout << e  << " ";
+			cout << endl;
+
 		int k = lineHints.size();
+		int n = line.size() - 1;
 
-		// Leftmost-start
-		vector<int> left(k);
-		int pos = 0;
-		for (int i = 0; i < k; i++) {
-			while (pos < n && line[pos] == 0) pos++; // Skip empty cells
-			left[i] = pos;
-			pos += lineHints[i];
-			if (pos < n) pos++;
+		// DP method
+		vector<vector<int>> dpTable(n +1 , vector<int>(k+1, -1)); 
+		//if (!Fix(n - 1,k - 1, line, lineHints, dpTable)) return false;
+		if (!Fix(n, k, line, lineHints, dpTable)) return false;
+		cout << ":?? "  << endl;
+
+		bool changedInPass = true;
+	    bool totalChanged = false;
+	    while (changedInPass) {
+	        changedInPass = Coloring(n, k, line, lineHints, modifiedEntries);
+	        if (changedInPass) {
+	            totalChanged = true;
+	        }
+	    }
+
+		if (totalChanged) {
+			line.erase(line.begin());
+			writeLine(dim, idx, line);
+
+
+			this->printSolved();
+
+
+			return true;
 		}
-
-		// Rightmost
-		vector<int> right(k);
-		pos = n;
-		for (int i = k-1; i >= 0; i--) {
-			pos -= lineHints[i];
-			while(pos > 0 && line[pos + lineHints[i] - 1] == 0) pos--;
-			right[i] = pos;
-			if (pos > 0) pos--;
-		}
-
-
-		// Overlap
-		vector<int> newLine = line;
-		for (int i = 0; i < k; i++) {
-
-			int startMax = right[i];
-			int endMin = left[i] + lineHints[i] - 1;
-
-
-			while (endMin >= startMax) {
-				if (newLine[endMin] == -1) {
-					newLine[endMin] = 1;
-					modifiedEntries.push_back(endMin);
-				}
-				
-				endMin--;
-			}
-		}
-
-		// No forced empties for the moment for i don't know how to do it myslef xd
-
-		for (int pos = 0; pos < n; pos++) {
-			bool canBeFilled = false;
-			for (int i = 0; i < k; i++) {
-				int L = left[i];
-				int R = right[i];
-				int startMin = L;
-				int startMax = R;
-				if (pos >= startMin && pos <= startMax + lineHints[i] - 1) {
-					canBeFilled = true;
-					break;
-				}
-
-			}
-			if (!canBeFilled && newLine[pos] == -1) {
-				newLine[pos] = 0;
-				modifiedEntries.push_back(pos);
-			}
-		}
-
-		if (modifiedEntries.size() == 0) return false;
-
-		writeLine(dim, idx, newLine);
-		return true;
+		cout << "Nothig aout of this one" << endl;
+		return false;
 	}
 
 	bool isTrivial (int dim, vector<int>& idx) {
@@ -342,10 +401,12 @@ private:
 		        	Item toSolve = {heuristic, {dim, coords}};
 		        	nextAnalyze.push(toSolve);
 		        }
+
+
 		        
 		    }
 		}
-		this->printSolved();
+		
 
 
 		vector<int> modifiedEntries;
@@ -668,7 +729,7 @@ int main(int argc, char const *argv[])
 	nonogram.printOriginal();
 	nonogram.printSolved();
 
-/*
+
 	cout << "From lists:" << endl;
 	path = argv[2];
 	if (nonogram.buildFromLists(path)) {
@@ -682,8 +743,9 @@ int main(int argc, char const *argv[])
 	} else {
 		throw std::invalid_argument("Hints do not match the puzzle");
 	}
-*/
-	
+
+	nonogram.printOriginal();
+	nonogram.printSolved();
 
 /*
 	cout << endl;
