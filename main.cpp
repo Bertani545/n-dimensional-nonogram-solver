@@ -26,6 +26,7 @@ private:
 	*/
 	vector<vector<vector<int>>> hints;
 	vector<int> data;
+	vector<int> unsolvedData;
 	vector<int> strides;
 	vector<vector<int>> hintStrides;
 
@@ -69,6 +70,8 @@ private:
 			
 	}
 	
+	
+
 
 	void buildLists() {
 		long long totalMult = 1;
@@ -109,13 +112,6 @@ private:
 			
 		}
 
-		/*
-		for(int i = 0; i < dimensionsSize[0]; i++) {
-			for (int j = 0; j < dimensionsSize[1]; j++) {
-				cout << getValue({i,j}) << " ";
-			}cout << endl;
-		}
-		*/
 		
 	}
 
@@ -133,9 +129,9 @@ private:
 	}
 
 
-	bool solve() { return false;}
+	
 
-	int getHintIndex(const vector<int>& idx, int dim) {
+	int getHintIndex(int dim, const vector<int>& idx) {
 	    int h = 0;
 	    for (int i = 0; i < numberDimensions; i++) {
 	        if (i == dim) continue;
@@ -144,16 +140,165 @@ private:
 	    return h;
 	}
 
+	void writeLine(int dim, vector<int>& idx, vector<int>& newValues) {
+		int length = this->dimensionsSize[dim];
+		
+		// Get offset
+		int offset = 0;
+		int ri = 0;
+		for (int i = 0; i < this->numberDimensions; i++) {
+			if (i == dim) continue;
+			if (idx[ri] >= this->dimensionsSize[i] || idx[ri] < 0) throw std::invalid_argument("idx content not valid for getLine");
+			offset += idx[ri] * this->strides[i];
+			ri++;
+		}
 
-	
+		for (int i = 0; i < length; i++)
+			this->unsolvedData[offset + i * this->strides[dim]] = newValues[i];
+
+	}
+
+
+	// Solves as much as possible from the line
+	// returns false if nothing was placed or multiple solutions exists
+	bool line_solver(int dim, vector<int>& idx) {
+		vector<int> line = this->getLine(dim, idx, false);
+		vector<int> lineHints = this->getHintLine(dim, idx);
+
+		int n = line.size();
+		int k = lineHints.size();
+
+		// Leftmost-start
+		vector<int> left(k);
+		int pos = 0;
+		for (int i = 0; i < k; i++) {
+			while (pos < n && line[pos] == 0) pos++; // Skip empty cells
+			left[i] = pos;
+			pos += lineHints[i];
+			if (pos < n) pos++;
+		}
+
+		// Rightmost
+		vector<int> right(k);
+		pos = n;
+		for (int i = k-1; i >= 0; i--) {
+			pos -= lineHints[i];
+			while(pos > 0 && line[pos + lineHints[i] - 1] == 0) pos--;
+			right[i] = pos;
+			if (pos > 0) pos--;
+		}
+
+
+		// Overlap
+		vector<int> newLine = line;
+		for (int i = 0; i < k; i++) {
+
+			int startMax = right[i];
+			int endMin = left[i] + lineHints[i] - 1;
+
+
+			while (endMin >= startMax) {
+				newLine[endMin] = 1;
+				endMin--;
+			}
+		}
+
+		// No forced empties for the moment for i don't know how to do it myslef xd
+
+		for (int pos = 0; pos < n; pos++) {
+			bool canBeFilled = false;
+			for (int i = 0; i < k; i++) {
+				int L = left[i];
+				int R = right[i];
+				int startMin = L;
+				int startMax = R;
+				if (pos >= startMin && pos <= startMax + lineHints[i] - 1) {
+					canBeFilled = true;
+					break;
+				}
+
+			}
+			if (!canBeFilled && newLine[pos] == -1) newLine[pos] = 0;
+		}
+
+		
+
+		writeLine(dim, idx, newLine);
+		return true;
+	}
+
+	float getHeuristic(int dim,  vector<int>& idx) {
+		vector<int> line = this->getLine(dim, idx, false);
+		vector<int> lineHints = this->getHintLine(dim, idx);
+
+		float he = 0;
+		// Many hints
+		for (int e : lineHints) {
+			he += ((float) e )/ ((float) this->dimensionsSize[dim]);
+		}
+
+		// Many solved squares
+		for (int e : line) {
+			if (e != 1) continue;
+			he += ((float) e )/ ((float) this->dimensionsSize[dim]);
+		}
+		return he;
+	}
+
+	// Will try to solve the nonogram from the lists
+	// if impossible or it does not equal the original data, returns false
+	// else, it saves the data (if it didn't exists) and returns true
+	bool solve() { 
+		this->unsolvedData = vector<int>(this->data.size(), -1);
+
+		// Create all the possible lines
+		// Solve the obvious ones
+		// insert the others in a priority queue
+		for (int dim = 0; dim < this->numberDimensions; dim++) {
+
+		}
+
+		// Iterate until empty
+
+
+		return true;
+	}
+
+	// Checks if the lists fit in the dimensions
+	bool validate() {
+		for (int i = 0; i < this->numberDimensions; i++) {
+			for (vector<int> hint : this->hints[i]) {
+				int total = hint.size() - 1;
+				for (int e : hint) total += e;
+
+				if (total > this->dimensionsSize[i]) return false;
+			}
+		}
+		return true;
+	}
+
+	// Cuts the solved edges and re makes the lists
+	void cut_edges() {
+
+
+	}
+
+	void line_density() {
+
+	}
+
 public:
 	Nonogram(){};
 	~Nonogram(){};
 
 	// In which direction dim would you like to solve and which of all possible lines
-	vector<int> getHintLine(const vector<int>& idx, int dim) {
+	vector<int> getHintLine(int dim, const vector<int>& idx) {
 		if (idx.size() != this->numberDimensions - 1) {
 			throw std::invalid_argument("idx size must be numberDimensions - 1");
+		}
+
+		if (dim >= this->numberDimensions) {
+			throw std::invalid_argument("No valid dimension");
 		}
 
 		// Add trash to dim position
@@ -161,11 +306,12 @@ public:
 	    vector<int> new_idx(this->numberDimensions);
 	    for (int j = 0; j < this->numberDimensions; j++) {
 	        if (j == dim) continue;
+	        if (idx[ri] < 0 || idx[ri] >= this->dimensionsSize[ri]) throw std::invalid_argument("idx content not valid for getHintLine");
 	        new_idx[j] = idx[ri];
 	        ri++;
 	    }
 
-	    int h = getHintIndex(new_idx, dim);
+	    int h = getHintIndex(dim, new_idx);
 	    return hints[dim][h];
 	}
 
@@ -174,6 +320,7 @@ public:
 
 		int dataPos = 0;
 		for (int i = 0; i < this->numberDimensions; i++) {
+			if (idx[i] < 0 || idx[i] >= this->dimensionsSize[i]) throw std::invalid_argument("idx content not valid for getValue");
 			dataPos += idx[i] * this->strides[i];
 		}
 		if (dataPos >= this->data.size()) return -1;
@@ -216,14 +363,6 @@ public:
 		this->data = vector<int>(total);
 		for (int i = 0; i < total; i++)
 			if (!(file >> this->data[i])) return clean();
-
-		/*
-		for (int i = 0; i < this->dimensionsSize[0]; i++){
-			for (int j = 0; j < this->dimensionsSize[1]; j++) {
-				cout << data[i*this->strides[0] + j] << " "; 
-			}cout << endl;
-		}cout << endl;
-		*/
 
 		this->buildLists();
 		this->buildHintStrides();
@@ -275,7 +414,10 @@ public:
 
 		this->buildHintStrides();
 
-		return solve();
+		//if (!this->validate()) return clean();
+
+		return this->validate() ? solve() : clean();		
+		//return solve();
 	}
 
 	// Getters
@@ -297,7 +439,41 @@ public:
 		return hints[dim][r];
 	}
 
-	
+	vector<int> getLine(int dim, vector<int>& idx, bool solved = true) {
+		int length = this->dimensionsSize[dim];
+		vector<int> line;
+		
+		// Get offset
+		int offset = 0;
+		int ri = 0;
+		for (int i = 0; i < this->numberDimensions; i++) {
+			if (i == dim) continue;
+			if (idx[ri] >= this->dimensionsSize[i] || idx[ri] < 0) throw std::invalid_argument("idx content not valid for getLine");
+			offset += idx[ri] * this->strides[i];
+			ri++;
+		}
+		if (solved)
+			for (int i = 0; i < length; i++) 
+				line.push_back(this->data[offset + i * this->strides[dim]]);				
+		else
+			for (int i = 0; i < length; i++)
+				line.push_back(this->unsolvedData[offset + i * this->strides[dim]]);
+
+		return line;
+	}
+
+	vector<int> solveLine(int dim, vector<int>& idx) {
+		if (line_solver(dim, idx))
+		{
+			return this->getLine(dim, idx, false);
+		}
+		else {
+			cout << "No square was placed" << endl;
+		}
+
+		return {};
+	}
+
 };
 
 
@@ -320,15 +496,34 @@ int main(int argc, char const *argv[])
 		}cout << endl;
 	}
 
+	vector<int> idx = {0};
+	vector<int> line = nonogram.getLine(0, idx);
+	vector<int> hintLine =  nonogram.getHintLine(0, idx);
+	for (int e : line)
+		cout << e << " ";
+	cout << endl;
+	for (int e : hintLine)
+		cout << e << " ";
+	cout << endl;
+
+	vector<int> solvedLine = nonogram.solveLine(0, idx);
+	cout << "Filled squares :" << endl;
+	for (int e : solvedLine)
+		cout << e << " ";
+	cout << endl;
+
 	cout << "From lists:" << endl;
 	path = argv[2];
-	nonogram.buildFromLists(path);
-	for (int i = 0; i < nonogram.getDimensions(); i++) {
-		vector<vector<int>> temp1 = nonogram.getHintsToSolveDimension(i);
-		for (vector<int> v : temp1) {
-			for (int e : v) cout << e << " ";
-				cout << endl;
-		}cout << endl;
+	if (nonogram.buildFromLists(path)) {
+		for (int i = 0; i < nonogram.getDimensions(); i++) {
+			vector<vector<int>> temp1 = nonogram.getHintsToSolveDimension(i);
+			for (vector<int> v : temp1) {
+				for (int e : v) cout << e << " ";
+					cout << endl;
+			}cout << endl;
+		}
+	} else {
+		throw std::invalid_argument("Hints do not match the puzzle");
 	}
 
 	
