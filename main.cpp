@@ -4,6 +4,8 @@
 #include<string>
 #include <sstream>
 #include <queue>
+#include<set>
+#include<algorithm>
 
 using namespace std;
 
@@ -362,10 +364,17 @@ private:
 	    return tuples;
 	}
 
-	using Item = std::pair<int, std::pair<int, std::vector<int>>>;
+	using Item = std::pair<float, std::pair<int, std::vector<int>>>;
+	// We know a.second.second and b.second.second are equal in size but must differ somewhere
 	struct Compare {
 	    bool operator()(const Item& a, const Item& b) const {
-	        return a.first < b.first; // bigger priority value = higher priority
+	    	if (a.first != b.first)
+	        	return a.first < b.first; // bigger priority value = higher priority
+	        if (a.second.first != b.second.first)
+	        	return a.second.first < b.second.first;
+	        int i = 0;
+	        while (a.second.second[i] == b.second.second[i]) i++;
+	        return a.second.second[i] < b.second.second[i];
 	    }
 	};
 
@@ -378,7 +387,9 @@ private:
 
 		this->unsolvedData = vector<int>(totalMult, -1);
 
-		priority_queue<Item, std::vector<Item>, Compare> nextAnalyze;
+		//priority_queue<Item, std::vector<Item>, Compare> nextAnalyze;
+		set<Item, Compare> nextAnalyze;
+
 		// Create all the possible lines
 		// Solve the obvious ones
 		// insert the others in a priority queue
@@ -390,9 +401,9 @@ private:
 		        if (isTrivial(dim, coords)) {
 		        	this->solveTrivial(dim, coords);
 		        } else {
-		        	int heuristic = this->getHeuristic(dim, coords);
+		        	float heuristic = this->getHeuristic(dim, coords);
 		        	Item toSolve = {heuristic, {dim, coords}};
-		        	nextAnalyze.push(toSolve);
+		        	nextAnalyze.insert(toSolve);
 		        }
 		    }
 		}
@@ -405,24 +416,42 @@ private:
 		
 		while (!nextAnalyze.empty()) {
 			modifiedEntries.clear();
-			auto [_, values] = nextAnalyze.top();
-			nextAnalyze.pop();
+			const auto& top = *nextAnalyze.begin(); // Maybe
+			auto [priority, inner] = top;
+			auto [dim_id, idx_old] = inner;
+			nextAnalyze.erase(nextAnalyze.begin());
+
+
  
-			bool solvedAnything = lineSolver(values.first, values.second, modifiedEntries);
+			bool solvedAnything = lineSolver(dim_id, idx_old, modifiedEntries);
 			if (!solvedAnything) continue;
 			//this->printSolved();
 
 			// Build the next ones to try
 			
 			for (int idx : modifiedEntries) {
-				vector<int> coords = values.second;
-				coords[values.first] = idx;
+				vector<int> coords = idx_old;
+				coords[dim_id] = idx;
 
 				for (int d2 = 0; d2 < numberDimensions; d2++) {
-					if (d2 == values.first) continue;
-					int heuristic = this->getHeuristic(d2, coords);
+					if (d2 == dim_id) continue;
+					float heuristic = this->getHeuristic(d2, coords);
 					Item toSolve = {heuristic, {d2, coords}};
-					nextAnalyze.push(toSolve);
+
+					// Chek for update
+					auto it = std::find_if(nextAnalyze.begin(), nextAnalyze.end(), [&toSolve](const Item& x){
+						return x.second.first == toSolve.second.first &&
+								x.second.second == toSolve.second.second;
+					});
+
+					if (it != nextAnalyze.end()) {
+						nextAnalyze.erase(it);
+						nextAnalyze.insert(toSolve);
+					} else {
+						nextAnalyze.insert(toSolve);
+					}
+
+					
 				}
 			}
 			
@@ -725,7 +754,7 @@ int main(int argc, char const *argv[])
 	nonogram.printOriginal();
 	nonogram.printSolved();
 
-/*
+
 	cout << "From lists:" << endl;
 	path = argv[2];
 	if (nonogram.buildFromLists(path)) {
@@ -740,9 +769,9 @@ int main(int argc, char const *argv[])
 		throw std::invalid_argument("Hints do not match the puzzle");
 	}
 
-	nonogram.printOriginal();
+	//nonogram.printOriginal();
 	nonogram.printSolved();
-*/
+
 /*
 	cout << endl;
 	vector<int> temp = nonogram.getHintLine({1}, 0);
