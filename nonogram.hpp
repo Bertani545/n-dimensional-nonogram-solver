@@ -724,36 +724,36 @@ public:
 		this->buildStrides();
 		this->buildHintStrides();
 		
+		do {
+			this->data = vector<int>(total, 0); // Start at 0
+			double currCover = 0.0;
+			double totalPlaced = 0;
+			double floatTotal = (float) total;
+			int currIdx = -1;
 
-		this->data = vector<int>(total, 0); // Start at 0
-		double currCover = 0.0;
-		double totalPlaced = 0;
-		double floatTotal = (float) total;
-		int currIdx = -1;
+			auto const seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+			default_random_engine generator(seed);
+			uniform_int_distribution<int> distribution(0, total - 1);
+			this->buildLists(); // All 0's
 
-		auto const seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-		default_random_engine generator(seed);
-		uniform_int_distribution<int> distribution(0, total - 1);
-		this->buildLists(); // All 0's
-
-		while(currCover - appproxCoverPercent < 0) {
-			// Place a square
-			currIdx = distribution(generator);
-			this->data[currIdx] = 1;
+			while(currCover - appproxCoverPercent < 0) {
+				// Place a square
+				currIdx = distribution(generator);
+				this->data[currIdx] = 1;
 
 
 
-			if (checkCellConsistency(currIdx)) {
-				totalPlaced += 1.0;
-				currCover = totalPlaced / floatTotal;
-			} else {
-				this->data[currIdx] = 0;
+				if (checkCellConsistency(currIdx)) {
+					totalPlaced += 1.0;
+					currCover = totalPlaced / floatTotal;
+				} else {
+					this->data[currIdx] = 0;
+				}
+
 			}
-
-		}
-		this->buildHintStrides();
-		this->buildLists();
-		if (!solve()) clean();
+			this->buildHintStrides();
+			this->buildLists();
+		}while(!solve());
 	}
 
 
