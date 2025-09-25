@@ -9,6 +9,9 @@
 #include <queue>
 #include<set>
 #include<algorithm>
+#include<random>
+#include <chrono> 
+
 
 using namespace std;
 
@@ -25,7 +28,7 @@ private:
 		Example, in a 2 x 2
 
 		* *
-		´ ´
+		' '
 		hints[0] gives {2, 0}
 		hints[1] gives {1 ,1}
 
@@ -87,8 +90,8 @@ private:
 		for (int d = 0; d < this->numberDimensions; d++) {
 
 			int length = this->dimensionsSize[d];   // how long each line is
-			int count  = totalMult / length;        // how many lines along d
-			int step   = this->strides[d];          // stride along d
+			int count  = totalMult / length;		// how many lines along d
+			int step   = this->strides[d];		  // stride along d
 			this->hints[d] = vector<vector<int>>(count);
 
 			for (int h = 0; h < count; h++) {
@@ -96,23 +99,23 @@ private:
 				line.reserve(length);
 
 				// compute starting offset in flat data
-		        // "h" encodes the fixed coordinates of all other dims
-		        int offset = 0;
-		        int tmp = h;
-		        for (int k = 0; k < this->numberDimensions; k++) {
-		            if (k == d) continue;
-		            int coord = tmp % this->dimensionsSize[k];
-		            tmp /= this->dimensionsSize[k];
-		            offset += coord * this->strides[k];
-		        }
+				// "h" encodes the fixed coordinates of all other dims
+				int offset = 0;
+				int tmp = h;
+				for (int k = 0; k < this->numberDimensions; k++) {
+					if (k == d) continue;
+					int coord = tmp % this->dimensionsSize[k];
+					tmp /= this->dimensionsSize[k];
+					offset += coord * this->strides[k];
+				}
 
-		        // collect values along dimension d
-		        for (int i = 0; i < length; i++) {
-		            line.push_back(this->data[offset + i * step]);
-		        }
+				// collect values along dimension d
+				for (int i = 0; i < length; i++) {
+					line.push_back(this->data[offset + i * step]);
+				}
 
 
-		        this->hints[d][h] = computeLine(line);
+				this->hints[d][h] = computeLine(line);
 
 			}
 			
@@ -125,12 +128,12 @@ private:
 		// hintStrides[d][k] = stride contribution of dimension k when building hint index for dim d
 		this->hintStrides = vector<vector<int>>(this->numberDimensions, vector<int>(this->numberDimensions, 0));
 		for (int d = 0; d < numberDimensions; d++) {
-		    int factor = 1;
-		    for (int k = 0; k < numberDimensions; k++) {
-		        if (k == d) continue;
-		        this->hintStrides[d][k] = factor;
-		        factor *= dimensionsSize[k];
-		    }
+			int factor = 1;
+			for (int k = 0; k < numberDimensions; k++) {
+				if (k == d) continue;
+				this->hintStrides[d][k] = factor;
+				factor *= dimensionsSize[k];
+			}
 		}
 	}
 
@@ -138,12 +141,12 @@ private:
 	
 
 	int getHintIndex(int dim, const vector<int>& idx) {
-	    int h = 0;
-	    for (int i = 0; i < numberDimensions; i++) {
-	        if (i == dim) continue;
-	        h += idx[i] * hintStrides[dim][i];
-	    }
-	    return h;
+		int h = 0;
+		for (int i = 0; i < numberDimensions; i++) {
+			if (i == dim) continue;
+			h += idx[i] * hintStrides[dim][i];
+		}
+		return h;
 	}
 
 	void writeLine(int dim, vector<int>& idx, vector<int>& newValues) {
@@ -167,22 +170,22 @@ private:
 		if (dpTable[i][j] >= 0) return dpTable[i][j];
 
 		// Base cases
-	    if (j == 0) {
-	        // If there are no more hints, the remaining cells must all be white (0)
-	        for (int k = 1; k <= i; ++k) {
-	            if (line[k] == 1) {
-	                dpTable[i][j] = 0;
-	                return false;
-	            }
-	        }
-	        dpTable[i][j] = 1;
-	        return true;
-	    }
-	    if (i == 0) {
-	        // We have hints left but no cells. This is only valid if we have no hints (handled above).
-	        dpTable[i][j] = 0;
-	        return false;
-	    }
+		if (j == 0) {
+			// If there are no more hints, the remaining cells must all be white (0)
+			for (int k = 1; k <= i; ++k) {
+				if (line[k] == 1) {
+					dpTable[i][j] = 0;
+					return false;
+				}
+			}
+			dpTable[i][j] = 1;
+			return true;
+		}
+		if (i == 0) {
+			// We have hints left but no cells. This is only valid if we have no hints (handled above).
+			dpTable[i][j] = 0;
+			return false;
+		}
 
 		//dpTable[i][j] = Fix0(i,j, line, lineHints, dpTable) || Fix1(i,j, line, lineHints, dpTable);
 		bool res = false;
@@ -196,20 +199,20 @@ private:
 		if (!res && i >= h_j) {
 			bool isBlock = true;
 			for (int k = i - h_j + 1; k <= i; ++k) {
-	            if (line[k] == 0) { // Should be 1 or unknown, but if it's 0, it can't be a block.
-	                isBlock = false;
-	                break;
-	            }
-	        }
+				if (line[k] == 0) { // Should be 1 or unknown, but if it's 0, it can't be a block.
+					isBlock = false;
+					break;
+				}
+			}
 
-	        if (isBlock) {
-	        	int leftPos = i - h_j; // cell right before the block (0 if block starts at 1)
-	        	if (leftPos == 0) { // The block starts at the beginning of the line
-	                res = res || Fix(0, j - 1, line, lineHints, dpTable);
-	            } else if (line[i - h_j] != 1) { // separator cell (leftPos) must NOT be black (cannot be 1).
-	                res = res || Fix(i - h_j - 1, j - 1, line, lineHints, dpTable);
-	            }
-	        }
+			if (isBlock) {
+				int leftPos = i - h_j; // cell right before the block (0 if block starts at 1)
+				if (leftPos == 0) { // The block starts at the beginning of the line
+					res = res || Fix(0, j - 1, line, lineHints, dpTable);
+				} else if (line[i - h_j] != 1) { // separator cell (leftPos) must NOT be black (cannot be 1).
+					res = res || Fix(i - h_j - 1, j - 1, line, lineHints, dpTable);
+				}
+			}
 		}
 
 		dpTable[i][j] = res;
@@ -217,39 +220,39 @@ private:
 	}
 
 	bool Coloring(int n, int k, vector<int>& line, vector<int>& lineHints, vector<int>& modifiedEntries ) {
-	    bool changed = false;
+		bool changed = false;
 
-	    for (int i = 1; i <= n; ++i) {
-	        // If the cell is already determined, skip it
-	        if (line[i] != -1) continue;
+		for (int i = 1; i <= n; ++i) {
+			// If the cell is already determined, skip it
+			if (line[i] != -1) continue;
 
-	        // Try coloring the cell as '1' (black)
-	        line[i] = 1;
-	        vector<vector<int>> dpTable1(n + 1, vector<int>(k + 1, -1));
-	        bool possible1 = Fix(n, k, line, lineHints, dpTable1);
+			// Try coloring the cell as '1' (black)
+			line[i] = 1;
+			vector<vector<int>> dpTable1(n + 1, vector<int>(k + 1, -1));
+			bool possible1 = Fix(n, k, line, lineHints, dpTable1);
 
-	        // Try coloring the cell as '0' (white)
-	        line[i] = 0;
-	        vector<vector<int>> dpTable0(n + 1, vector<int>(k + 1, -1));
-	        bool possible0 = Fix(n, k, line, lineHints, dpTable0);;
+			// Try coloring the cell as '0' (white)
+			line[i] = 0;
+			vector<vector<int>> dpTable0(n + 1, vector<int>(k + 1, -1));
+			bool possible0 = Fix(n, k, line, lineHints, dpTable0);;
 
-	        // Apply the deduction rules
-	        if (possible1 && !possible0) {
-	            // It must be a '1' because '0' is not a valid solution
-	            line[i] = 1;
-	            modifiedEntries.push_back(i-1);
-	            changed = true;
-	        } else if (!possible1 && possible0) {
-	            // It must be a '0' because '1' is not a valid solution
-	            line[i] = 0;
-	            modifiedEntries.push_back(i-1);
-	            changed = true;
-	        } else {
-	        	line[i] = -1;
-	        }
-	    }
+			// Apply the deduction rules
+			if (possible1 && !possible0) {
+				// It must be a '1' because '0' is not a valid solution
+				line[i] = 1;
+				modifiedEntries.push_back(i-1);
+				changed = true;
+			} else if (!possible1 && possible0) {
+				// It must be a '0' because '1' is not a valid solution
+				line[i] = 0;
+				modifiedEntries.push_back(i-1);
+				changed = true;
+			} else {
+				line[i] = -1;
+			}
+		}
 
-	    return changed;
+		return changed;
 	}
 
 	bool lineSolver(int dim, vector<int>& idx, vector<int>& modifiedEntries) {
@@ -273,13 +276,13 @@ private:
 		if (!Fix(n, k, line, lineHints, dpTable)) return false;
 
 		bool changedInPass = true;
-	    bool totalChanged = false;
-	    while (changedInPass) {
-	        changedInPass = Coloring(n, k, line, lineHints, modifiedEntries);
-	        if (changedInPass) {
-	            totalChanged = true;
-	        }
-	    }
+		bool totalChanged = false;
+		while (changedInPass) {
+			changedInPass = Coloring(n, k, line, lineHints, modifiedEntries);
+			if (changedInPass) {
+				totalChanged = true;
+			}
+		}
 
 		if (totalChanged) {
 			line.erase(line.begin());
@@ -343,42 +346,42 @@ private:
 	}
 
 	vector<vector<int>> generateLineIndexTuples(int dim) {
-	    long long totalMult = 1;
-	    for (int s : this->dimensionsSize) totalMult *= s;
-	    
-	    int length = dimensionsSize[dim];       // length of each line
-	    int count  = totalMult / length;        // how many lines along this dimension
+		long long totalMult = 1;
+		for (int s : this->dimensionsSize) totalMult *= s;
+		
+		int length = dimensionsSize[dim];	   // length of each line
+		int count  = totalMult / length;		// how many lines along this dimension
 
-	    vector<vector<int>> tuples;
-	    tuples.reserve(count);
+		vector<vector<int>> tuples;
+		tuples.reserve(count);
 
-	    for (int h = 0; h < count; h++) {
-	        vector<int> coords(dimensionsSize.size());
-	        int tmp = h;
-	        for (int k = 0; k < dimensionsSize.size(); k++) {
-	            if (k == dim) continue;
-	            coords[k] = tmp % dimensionsSize[k];
-	            tmp /= dimensionsSize[k];
-	        }
-	        // dim is "free" (0..length-1) when actually scanning line
-	        tuples.push_back(coords);
-	    }
+		for (int h = 0; h < count; h++) {
+			vector<int> coords(dimensionsSize.size());
+			int tmp = h;
+			for (int k = 0; k < dimensionsSize.size(); k++) {
+				if (k == dim) continue;
+				coords[k] = tmp % dimensionsSize[k];
+				tmp /= dimensionsSize[k];
+			}
+			// dim is "free" (0..length-1) when actually scanning line
+			tuples.push_back(coords);
+		}
 
-	    return tuples;
+		return tuples;
 	}
 
 	using Item = std::pair<float, std::pair<int, std::vector<int>>>;
 	// We know a.second.second and b.second.second are equal in size but must differ somewhere
 	struct Compare {
-	    bool operator()(const Item& a, const Item& b) const {
-	    	if (a.first != b.first)
-	        	return a.first < b.first; // bigger priority value = higher priority
-	        if (a.second.first != b.second.first)
-	        	return a.second.first < b.second.first;
-	        int i = 0;
-	        while (a.second.second[i] == b.second.second[i]) i++;
-	        return a.second.second[i] < b.second.second[i];
-	    }
+		bool operator()(const Item& a, const Item& b) const {
+			if (a.first != b.first)
+				return a.first < b.first; // bigger priority value = higher priority
+			if (a.second.first != b.second.first)
+				return a.second.first < b.second.first;
+			int i = 0;
+			while (a.second.second[i] == b.second.second[i]) i++;
+			return a.second.second[i] < b.second.second[i];
+		}
 	};
 
 	// Will try to solve the nonogram from the lists
@@ -401,14 +404,14 @@ private:
 			auto tuples = generateLineIndexTuples(dim);
 
 			for (auto& coords : tuples) {
-		        if (isTrivial(dim, coords)) {
-		        	this->solveTrivial(dim, coords);
-		        } else {
-		        	float heuristic = this->getHeuristic(dim, coords);
-		        	Item toSolve = {heuristic, {dim, coords}};
-		        	nextAnalyze.insert(toSolve);
-		        }
-		    }
+				if (isTrivial(dim, coords)) {
+					this->solveTrivial(dim, coords);
+				} else {
+					float heuristic = this->getHeuristic(dim, coords);
+					Item toSolve = {heuristic, {dim, coords}};
+					nextAnalyze.insert(toSolve);
+				}
+			}
 		}
 		
 
@@ -515,8 +518,8 @@ public:
 		}
 
 
-	    int h = getHintIndex(dim, idx);
-	    return hints[dim][h];
+		int h = getHintIndex(dim, idx);
+		return hints[dim][h];
 	}
 
 	int getValue(vector<int> idx) {
@@ -650,6 +653,111 @@ public:
 		//return solve();
 	}
 
+
+	// Modifed and checks if still valid
+	bool lineChecker(int dim, vector<int>& idx) {
+		// Modify the hint
+		vector<int> line = getLine(dim, idx, true);
+		line.insert(line.begin(), {0}); 
+		int hintIdx = getHintIndex(dim, idx);
+		this->hints[dim][hintIdx] = computeLine(line);
+		vector<int> lineHints = getHintLine(dim, idx);
+
+
+		line[dim+1] = -1; // Insert the ambiguity
+		int k = lineHints.size();
+		int n = line.size() - 1;
+
+		// DP method
+		vector<vector<int>> dpTable(n +1 , vector<int>(k+1, -1)); 
+		//if (!Fix(n - 1,k - 1, line, lineHints, dpTable)) return false;
+		if (!Fix(n, k, line, lineHints, dpTable)) return false;
+
+		bool changedInPass = true;
+		bool totalChanged = false;
+		vector<int> dummy;
+		while (changedInPass) {
+			changedInPass = Coloring(n, k, line, lineHints, dummy);
+			if (changedInPass) {
+				totalChanged = true;
+			}
+		}
+
+		return totalChanged;
+	}
+
+
+			
+
+	bool checkCellConsistency(int currIdx) {
+
+		 // Decode currIdx into coordinates
+	    vector<int> coords(this->numberDimensions);
+	    for (int d = this->numberDimensions - 1; d >= 0; --d) {
+	        coords[d] = currIdx / this->strides[d];
+	        currIdx %= this->strides[d];
+	    }
+
+	    // For each dimension, check the line containing this cell
+		for (int dim = 0; dim < this->numberDimensions; ++dim) {
+	        vector<int> idx = coords; // cords[dim] is variable
+
+	        if (!lineChecker(dim, idx)) {
+	            return false; // line unsolvable
+	        }
+	    }
+
+	    return true;
+	}
+
+	void buildRandom(int nDim, vector<int>& dimSizes, float appproxCoverPercent) {
+		if (appproxCoverPercent > 1.0) return;
+
+		clean();
+		this->numberDimensions = nDim;
+		if (dimSizes.size() != nDim) {clean(); return;}
+
+		this->dimensionsSize = vector<int>(dimSizes);
+		int total = 1;
+		for (int d : this->dimensionsSize) total *= d;
+
+		this->buildStrides();
+		this->buildHintStrides();
+		
+
+		this->data = vector<int>(total, 0); // Start at 0
+		double currCover = 0.0;
+		double totalPlaced = 0;
+		double floatTotal = (float) total;
+		int currIdx = -1;
+
+		auto const seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+		default_random_engine generator(seed);
+		uniform_int_distribution<int> distribution(0, total - 1);
+		this->buildLists(); // All 0's
+
+		while(currCover - appproxCoverPercent < 0) {
+			// Place a square
+			currIdx = distribution(generator);
+			this->data[currIdx] = 1;
+
+
+
+			if (checkCellConsistency(currIdx)) {
+				totalPlaced += 1.0;
+				currCover = totalPlaced / floatTotal;
+			} else {
+				this->data[currIdx] = 0;
+			}
+
+		}
+		this->buildHintStrides();
+		this->buildLists();
+		if (!solve()) clean();
+	}
+
+
+
 	// Getters
 	int getDimensions() { return numberDimensions;}
 
@@ -732,6 +840,17 @@ public:
 		}
 		else {
 			for (int e : this->unsolvedData) cout << e << " ";
+			cout << endl;
+		}
+	}
+
+	void printHints() {
+		cout << "Hints: " << endl;
+		for (vector<vector<int>> list : this->hints) {
+			for (vector<int> lineHints : list) {
+				for (int hint : lineHints) cout << hint << " ";
+				cout << endl;
+			}
 			cout << endl;
 		}
 	}
