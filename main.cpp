@@ -388,7 +388,7 @@ private:
 		this->unsolvedData = vector<int>(totalMult, -1);
 
 		//priority_queue<Item, std::vector<Item>, Compare> nextAnalyze;
-		set<Item, Compare> nextAnalyze;
+		set<Item, Compare> nextAnalyze; // To allow updates
 
 		// Create all the possible lines
 		// Solve the obvious ones
@@ -457,7 +457,12 @@ private:
 			
 		}
 		
+		return isSolved();
+	}
 
+
+	// Checks for remaining -1
+	bool isSolved() {
 		// Well, could be worse
 		bool isSolved = true;
 		for (int e : this->unsolvedData) {
@@ -466,7 +471,6 @@ private:
 				break;
 			}
 		}
-
 		return isSolved;
 	}
 
@@ -537,6 +541,24 @@ public:
 	}
 
 	
+	bool buildFromData(int nDim, vector<int>& dimSizes, vector<int>& data) {
+		clean();
+		this->numberDimensions = nDim;
+		if (dimSizes.size() != nDim) return clean();
+
+		this->dimensionsSize = vector<int>(dimSizes);
+		int total = 1;
+		for (int d : this->dimensionsSize) total *= d;
+
+		if (data.size() != total) return clean();
+		this->buildStrides();
+		this->data = vector<int>(data);
+		this->buildLists();
+		this->buildHintStrides();
+		return solve();
+	}
+
+
 
 	bool buildFromSquares(string pathToPuzzle) {
 		clean();
