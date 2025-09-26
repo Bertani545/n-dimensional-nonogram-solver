@@ -505,14 +505,62 @@ private:
 		return true;
 	}
 
-	// Cuts the solved edges and re makes the lists
-	void cut_edges() {
+	// Receives a modified line, constructs the hints with the mod
+	// Brings back the ambiguity and checks if still valid
+	//Only for building a random one
+	bool lineChecker(struct LineDef& def) {
+		// Modify the hint
+		vector<int> line = getLine(def, true);
+		line.insert(line.begin(), {0}); 
+		int hintIdx = getHintIndex(def);
+		this->hints[def.dim][hintIdx] = computeLine(line);
+		vector<int> lineHints = getHintLine(def);
 
 
+		line[def.dim+1] = -1; // Insert the ambiguity
+		int k = lineHints.size();
+		int n = line.size() - 1;
+
+		// DP method
+		vector<vector<int>> dpTable(n +1 , vector<int>(k+1, -1)); 
+		//if (!Fix(n - 1,k - 1, line, lineHints, dpTable)) return false;
+		if (!Fix(n, k, line, lineHints, dpTable)) return false;
+
+		bool changedInPass = true;
+		bool totalChanged = false;
+		vector<int> dummy;
+		while (changedInPass) {
+			changedInPass = Coloring(n, k, line, lineHints, dummy);
+			if (changedInPass) {
+				totalChanged = true;
+			}
+		}
+
+		return totalChanged;
 	}
 
-	void line_density() {
 
+			
+
+	bool checkCellConsistency(int currIdx) {
+
+		 // Decode currIdx into coordinates
+	    vector<int> coords(this->numberDimensions);
+	    for (int d = this->numberDimensions - 1; d >= 0; --d) {
+	        coords[d] = currIdx / this->strides[d];
+	        currIdx %= this->strides[d];
+	    }
+
+	    // For each dimension, check the line containing this cell
+		for (int dim = 0; dim < this->numberDimensions; ++dim) {
+	        vector<int> idx = coords; // cords[dim] is variable
+	        struct LineDef def = {dim, idx};
+	        if (!lineChecker(def)) {
+	            return false; // line unsolvable
+	        }
+	    }
+
+	    return true;
 	}
 
 public:
@@ -671,63 +719,7 @@ public:
 	}
 
 
-	// Receives a modified line, constructs the hints with the mod
-	// Brings back the ambiguity and checks if still valid
-	//Only for building a random one
-	bool lineChecker(struct LineDef& def) {
-		// Modify the hint
-		vector<int> line = getLine(def, true);
-		line.insert(line.begin(), {0}); 
-		int hintIdx = getHintIndex(def);
-		this->hints[def.dim][hintIdx] = computeLine(line);
-		vector<int> lineHints = getHintLine(def);
-
-
-		line[def.dim+1] = -1; // Insert the ambiguity
-		int k = lineHints.size();
-		int n = line.size() - 1;
-
-		// DP method
-		vector<vector<int>> dpTable(n +1 , vector<int>(k+1, -1)); 
-		//if (!Fix(n - 1,k - 1, line, lineHints, dpTable)) return false;
-		if (!Fix(n, k, line, lineHints, dpTable)) return false;
-
-		bool changedInPass = true;
-		bool totalChanged = false;
-		vector<int> dummy;
-		while (changedInPass) {
-			changedInPass = Coloring(n, k, line, lineHints, dummy);
-			if (changedInPass) {
-				totalChanged = true;
-			}
-		}
-
-		return totalChanged;
-	}
-
-
-			
-
-	bool checkCellConsistency(int currIdx) {
-
-		 // Decode currIdx into coordinates
-	    vector<int> coords(this->numberDimensions);
-	    for (int d = this->numberDimensions - 1; d >= 0; --d) {
-	        coords[d] = currIdx / this->strides[d];
-	        currIdx %= this->strides[d];
-	    }
-
-	    // For each dimension, check the line containing this cell
-		for (int dim = 0; dim < this->numberDimensions; ++dim) {
-	        vector<int> idx = coords; // cords[dim] is variable
-	        struct LineDef def = {dim, idx};
-	        if (!lineChecker(def)) {
-	            return false; // line unsolvable
-	        }
-	    }
-
-	    return true;
-	}
+	
 
 	void buildRandom(int nDim, vector<int>& dimSizes, float appproxCoverPercent) {
 		if (appproxCoverPercent > 1.0) return;
@@ -774,7 +766,6 @@ public:
 	}
 
 
-
 	// Getters
 	int getDimensions() { return numberDimensions;}
 
@@ -815,7 +806,7 @@ public:
 		return line;
 	}
 
-
+	
 
 	void printOriginal() {
 		cout << endl << "Original:" << endl; 
