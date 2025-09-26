@@ -20,6 +20,13 @@ struct  LineDef {
 	vector<int> idx;
 };
 
+enum class Color {
+	Undefined = -1,
+	White = 0,
+	Black = 1,
+};
+
+
 class Nonogram
 {
 private:
@@ -37,8 +44,8 @@ private:
 
 	*/
 	vector<vector<vector<int>>> hints;
-	vector<int> data;
-	vector<int> unsolvedData;
+	vector<Color> data;
+	vector<Color> unsolvedData;
 	vector<int> strides;
 	vector<vector<int>> hintStrides;
 	int total_squares = 0;
@@ -53,15 +60,15 @@ private:
 	}
 
 
-	vector<int> computeLine(vector<int>& line) {
+	vector<int> computeLine(vector<Color>& line) {
 		int n = line.size();
 
-		int last_number = line[0];
-		int segment_size = (last_number == 1) ? 1 : 0;
-		int total_numbers = (last_number == 1) ? 1 : 0;
+		Color last_number = line[0];
+		int segment_size = (last_number == Color::Black) ? 1 : 0;
+		int total_numbers = (last_number == Color::Black) ? 1 : 0;
 		vector<int> hints;
 		for (int i = 1; i < n; i++) {
-			if (line[i]) { // 1
+			if (line[i] == Color::Black) { // 1
 				if (line[i] == last_number) {
 					segment_size++;
 				} else {
@@ -76,7 +83,7 @@ private:
 			}
 			last_number = line[i];
 		}
-		if (last_number == 1) hints.push_back(segment_size); // Last correction
+		if (last_number == Color::Black) hints.push_back(segment_size); // Last correction
 		if (hints.size() == 0) hints.push_back(0);
 
 		return hints;
@@ -99,7 +106,7 @@ private:
 			this->hints[d] = vector<vector<int>>(count);
 
 			for (int h = 0; h < count; h++) {
-				vector<int> line;
+				vector<Color> line;
 				line.reserve(length);
 
 				// compute starting offset in flat data
@@ -153,7 +160,7 @@ private:
 		return h;
 	}
 
-	void writeLine(struct LineDef& def, vector<int>& newValues) {
+	void writeLine(struct LineDef& def, vector<Color>& newValues) {
 		int length = this->dimensionsSize[def.dim];
 		
 		// Get offset
@@ -170,14 +177,14 @@ private:
 	}
 
 	// From "An Efficient Approach to Solving Nonograms" by Chen Wu et al.
-	int Fix(int i, int j, vector<int>& line, vector<int>& lineHints, vector<vector<int>>& dpTable) {
+	int Fix(int i, int j, vector<Color>& line, vector<int>& lineHints, vector<vector<int>>& dpTable) {
 		if (dpTable[i][j] >= 0) return dpTable[i][j];
 
 		// Base cases
 		if (j == 0) {
 			// If there are no more hints, the remaining cells must all be white (0)
 			for (int k = 1; k <= i; ++k) {
-				if (line[k] == 1) {
+				if (line[k] == Color::Black) {
 					dpTable[i][j] = 0;
 					return false;
 				}
@@ -195,7 +202,7 @@ private:
 		bool res = false;
 
 		// Option 1: cell i is white (0). Allowed if it's not explicitly black.
-		if (line[i] != 1) res = Fix(i - 1, j, line, lineHints, dpTable);
+		if (line[i] != Color::Black) res = Fix(i - 1, j, line, lineHints, dpTable);
 
 		// Option 2: place j-th block so it ends at i (block length h_j = lineHints[j-1])
 		int h_j = lineHints[j-1];
@@ -203,7 +210,7 @@ private:
 		if (!res && i >= h_j) {
 			bool isBlock = true;
 			for (int k = i - h_j + 1; k <= i; ++k) {
-				if (line[k] == 0) { // Should be 1 or unknown, but if it's 0, it can't be a block.
+				if (line[k] == Color::White) { // Should be 1 or unknown, but if it's 0, it can't be a block.
 					isBlock = false;
 					break;
 				}
@@ -213,7 +220,7 @@ private:
 				int leftPos = i - h_j; // cell right before the block (0 if block starts at 1)
 				if (leftPos == 0) { // The block starts at the beginning of the line
 					res = res || Fix(0, j - 1, line, lineHints, dpTable);
-				} else if (line[i - h_j] != 1) { // separator cell (leftPos) must NOT be black (cannot be 1).
+				} else if (line[i - h_j] != Color::Black) { // separator cell (leftPos) must NOT be black (cannot be 1).
 					res = res || Fix(i - h_j - 1, j - 1, line, lineHints, dpTable);
 				}
 			}
@@ -223,36 +230,36 @@ private:
 		return res;
 	}
 
-	bool Coloring(int n, int k, vector<int>& line, vector<int>& lineHints, vector<int>& modifiedEntries ) {
+	bool Coloring(int n, int k, vector<Color>& line, vector<int>& lineHints, vector<int>& modifiedEntries ) {
 		bool changed = false;
 
 		for (int i = 1; i <= n; ++i) {
 			// If the cell is already determined, skip it
-			if (line[i] != -1) continue;
+			if (line[i] != Color::Undefined) continue;
 
 			// Try coloring the cell as '1' (black)
-			line[i] = 1;
+			line[i] = Color::Black;
 			vector<vector<int>> dpTable1(n + 1, vector<int>(k + 1, -1));
 			bool possible1 = Fix(n, k, line, lineHints, dpTable1);
 
 			// Try coloring the cell as '0' (white)
-			line[i] = 0;
+			line[i] = Color::White;
 			vector<vector<int>> dpTable0(n + 1, vector<int>(k + 1, -1));
 			bool possible0 = Fix(n, k, line, lineHints, dpTable0);;
 
 			// Apply the deduction rules
 			if (possible1 && !possible0) {
 				// It must be a '1' because '0' is not a valid solution
-				line[i] = 1;
+				line[i] = Color::Black;
 				modifiedEntries.push_back(i-1);
 				changed = true;
 			} else if (!possible1 && possible0) {
 				// It must be a '0' because '1' is not a valid solution
-				line[i] = 0;
+				line[i] = Color::White;
 				modifiedEntries.push_back(i-1);
 				changed = true;
 			} else {
-				line[i] = -1;
+				line[i] = Color::Undefined;
 			}
 		}
 
@@ -260,8 +267,8 @@ private:
 	}
 
 	bool lineSolver(struct LineDef& def, vector<int>& modifiedEntries) {
-		vector<int> line = getLine(def, false);
-		line.insert(line.begin(), {0}); 
+		vector<Color> line = getLine(def, false);
+		line.insert(line.begin(), {Color::White}); 
 		vector<int> lineHints = getHintLine(def);
 /*
 		cout << "Line: "<< endl;
@@ -311,19 +318,19 @@ private:
 	void solveTrivial(struct LineDef& def) {
 		vector<int> lineHints = this->getHintLine(def);
 
-		vector<int> newLine;
+		vector<Color> newLine;
 		if (lineHints.size() == 1) {
 			if (lineHints[0] == 0) 
-				newLine = vector<int>(this->dimensionsSize[def.dim], 0);
+				newLine = vector<Color>(this->dimensionsSize[def.dim], Color::White);
 			else
-				newLine = vector<int>(this->dimensionsSize[def.dim], 1);
+				newLine = vector<Color>(this->dimensionsSize[def.dim], Color::Black);
 		}
 		else {
-			newLine = vector<int>(this->dimensionsSize[def.dim], 0);
+			newLine = vector<Color>(this->dimensionsSize[def.dim], Color::White);
 			int i = 0;
 			for (int hint : lineHints) {
 				for (hint; hint > 0; hint--, i++) {
-					newLine[i] = 1;
+					newLine[i] = Color::Black;
 				}
 				i++;
 			}
@@ -332,7 +339,7 @@ private:
 	}
 
 	float getHeuristic(struct LineDef& def) {
-		vector<int> line = this->getLine(def, false);
+		vector<Color> line = this->getLine(def, false);
 		vector<int> lineHints = this->getHintLine(def);
 
 		float he = 0;
@@ -342,8 +349,8 @@ private:
 		}
 
 		// Many solved squares
-		for (int e : line) {
-			if (e < 0) continue;
+		for (Color e : line) {
+			if (e == Color::Undefined) continue;
 			he += ((float) e )/ ((float) this->dimensionsSize[def.dim]);
 		}
 		return he;
@@ -396,7 +403,7 @@ private:
 		int totalMult = 1;
 		for (int s : this->dimensionsSize) totalMult *= s;
 
-		this->unsolvedData = vector<int>(totalMult, -1);
+		this->unsolvedData = vector<Color>(totalMult, Color::Undefined);
 
 		//priority_queue<Item, std::vector<Item>, Compare> nextAnalyze;
 		set<Item, Compare> nextAnalyze; // To allow updates
@@ -471,7 +478,7 @@ private:
 		}
 		
 		if (isSolved()) {
-			this->data = vector<int>(this->unsolvedData); // Consistent
+			this->data = vector<Color>(this->unsolvedData); // Consistent
 			return true;
 		}
 		return false;
@@ -482,12 +489,12 @@ private:
 	bool isSolved() {
 		// Well, could be worse
 		bool isSolved = true;
-		for (int e : this->unsolvedData) {
-			if (e < 0) {
+		for (Color e : this->unsolvedData) {
+			if (e == Color::Undefined) {
 				isSolved = false;
 				break;
 			}
-			total_squares += e; // We use this traverse to also check for this value
+			total_squares += (e == Color::Black); // We use this traverse to also check for this value
 		}
 		return isSolved;
 	}
@@ -510,14 +517,14 @@ private:
 	//Only for building a random one
 	bool lineChecker(struct LineDef& def) {
 		// Modify the hint
-		vector<int> line = getLine(def, true);
-		line.insert(line.begin(), {0}); 
+		vector<Color> line = getLine(def, true);
+		line.insert(line.begin(), {Color::White}); 
 		int hintIdx = getHintIndex(def);
 		this->hints[def.dim][hintIdx] = computeLine(line);
 		vector<int> lineHints = getHintLine(def);
 
 
-		line[def.dim+1] = -1; // Insert the ambiguity
+		line[def.dim+1] = Color::Undefined; // Insert the ambiguity
 		int k = lineHints.size();
 		int n = line.size() - 1;
 
@@ -592,8 +599,8 @@ public:
 		return dataPos;
 	}
 
-	int getValue(vector<int>& idx) {
-		if (idx.size() != this->numberDimensions) return -1;
+	Color getValue(vector<int>& idx) {
+		if (idx.size() != this->numberDimensions) return Color::Undefined;
 		int dataPos = getCellId(idx);
 		return this->data[dataPos];
 	}
@@ -612,7 +619,7 @@ public:
 	}
 
 	
-	bool buildFromData(int nDim, vector<int>& dimSizes, vector<int>& data) {
+	bool buildFromData(int nDim, vector<int>& dimSizes, vector<int>& new_data) {
 		clean();
 		this->numberDimensions = nDim;
 		if (dimSizes.size() != nDim) return clean();
@@ -621,9 +628,14 @@ public:
 		int total = 1;
 		for (int d : this->dimensionsSize) total *= d;
 
-		if (data.size() != total) return clean();
+		if (new_data.size() != total) return clean();
 		this->buildStrides();
-		this->data = vector<int>(data);
+		this->data = vector<Color>(new_data.size());
+		for (int i = 0; i < data.size(); ++i) { 
+			if (new_data[i] < -1 || new_data[i] > 1) return clean();
+			this->data[i] = static_cast<Color>(new_data[i]);
+		}
+		
 		this->buildLists();
 		this->buildHintStrides();
 		return solve();
@@ -656,9 +668,13 @@ public:
 		this->buildStrides();
 
 		// Parse data
-		this->data = vector<int>(total);
-		for (int i = 0; i < total; i++)
-			if (!(file >> this->data[i])) return clean();
+		this->data = vector<Color>(total);
+		int temp;
+		for (int i = 0; i < total; i++){
+			if (!(file >> temp)) return clean();
+			if (temp < -1 || temp > 1) return clean();
+			this->data[i] = static_cast<Color>(temp);
+		}
 
 		this->buildLists();
 		this->buildHintStrides();
@@ -736,7 +752,7 @@ public:
 		this->buildHintStrides();
 		
 		do {
-			this->data = vector<int>(total, 0); // Start at 0
+			this->data = vector<Color>(total, Color::White); // Start at White
 			double currCover = 0.0;
 			double totalPlaced = 0;
 			double floatTotal = (float) total;
@@ -750,13 +766,13 @@ public:
 			while(currCover - appproxCoverPercent < 0) {
 				// Place a square
 				currIdx = distribution(generator);
-				this->data[currIdx] = 1;
+				this->data[currIdx] = Color::Black;
 
 				if (checkCellConsistency(currIdx)) {
 					totalPlaced += 1.0;
 					currCover = totalPlaced / floatTotal;
 				} else {
-					this->data[currIdx] = 0;
+					this->data[currIdx] = Color::White;
 				}
 
 			}
@@ -770,7 +786,7 @@ public:
 	int getDimensions() { return numberDimensions;}
 
 	// Copy
-	vector<int> getData() {return data;}
+	vector<Color> getData() {return data;}
 	int getDimensionSize(int i) { 
 		if (i >= this->dimensionsSize.size()) return -1;
 		return dimensionsSize[i];
@@ -785,9 +801,9 @@ public:
 		return hints[dim][r];
 	}
 
-	vector<int> getLine(struct LineDef& def, bool solved = true) {
+	vector<Color> getLine(struct LineDef& def, bool solved = true) {
 		int length = this->dimensionsSize[def.dim];
-		vector<int> line;
+		vector<Color> line;
 		
 		// Get offset
 		int offset = 0;
@@ -813,13 +829,13 @@ public:
 		if (this->numberDimensions == 2) {
 			for (int i = 0; i < this->dimensionsSize[1]; i++) {
 				for (int j = 0; j < this->dimensionsSize[0]; j++) {
-					int value = this->data[i * this->strides[1] + j];
+					int value = static_cast<int>(this->data[i * this->strides[1] + j]);
 					cout << value << " ";
 				} cout << endl;
 			}cout << endl;
 		}
 		else {
-			for (int e : this->data) cout << e << " ";
+			for (Color e : this->data) cout << static_cast<int>(e) << " ";
 			cout << endl;
 		}
 	}
@@ -829,14 +845,14 @@ public:
 		if (this->numberDimensions == 2) {
 			for (int i = 0; i < this->dimensionsSize[1]; i++) {
 				for (int j = 0; j < this->dimensionsSize[0]; j++) {
-					int value = this->unsolvedData[i * this->strides[1] + j];
+					int value = static_cast<int>(this->unsolvedData[i * this->strides[1] + j]);
 					if (value >= 0) cout << " " << value << " ";
 					else cout << value << " ";
 				} cout << endl;
 			}cout << endl;
 		}
 		else {
-			for (int e : this->unsolvedData) cout << e << " ";
+			for (Color e : this->unsolvedData) cout << static_cast<int>(e) << " ";
 			cout << endl;
 		}
 	}
