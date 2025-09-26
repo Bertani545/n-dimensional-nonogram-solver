@@ -41,6 +41,7 @@ private:
 	vector<int> unsolvedData;
 	vector<int> strides;
 	vector<vector<int>> hintStrides;
+	int total_squares = 0;
 
 	// For dimensions: x, y, z, ...
 	void buildStrides() {
@@ -469,7 +470,11 @@ private:
 			
 		}
 		
-		return isSolved();
+		if (isSolved()) {
+			this->data = vector<int>(this->unsolvedData); // Consistent
+			return true;
+		}
+		return false;
 	}
 
 
@@ -482,6 +487,7 @@ private:
 				isSolved = false;
 				break;
 			}
+			total_squares += e; // We use this traverse to also check for this value
 		}
 		return isSolved;
 	}
@@ -528,20 +534,25 @@ public:
 		return hints[def.dim][h];
 	}
 
-	int getValue(vector<int> idx) {
-		if (idx.size() != this->numberDimensions) return -1;
-
+	int getCellId(vector<int>& idx) {
 		int dataPos = 0;
 		for (int i = 0; i < this->numberDimensions; i++) {
-			if (idx[i] < 0 || idx[i] >= this->dimensionsSize[i]) throw std::invalid_argument("idx content not valid for getValue");
+			if (idx[i] < 0 || idx[i] >= this->dimensionsSize[i]) throw std::invalid_argument("idx content not valid for getCellId");
 			dataPos += idx[i] * this->strides[i];
 		}
 		if (dataPos >= this->data.size()) return -1;
+		return dataPos;
+	}
+
+	int getValue(vector<int>& idx) {
+		if (idx.size() != this->numberDimensions) return -1;
+		int dataPos = getCellId(idx);
 		return this->data[dataPos];
 	}
 
 	bool clean() {
 		numberDimensions = 0;
+		total_squares = 0;
 		dimensionsSize.clear();
 		hints.clear();
 		data.clear();
@@ -804,38 +815,6 @@ public:
 		return line;
 	}
 
-	// 1 -> yes, 0-> unsolvable
-	bool lineCanBeModified(struct LineDef& def) {
-		// Modify the hint
-		vector<int> line = getLine(def, true);
-		line.insert(line.begin(), {0}); 
-		vector<int> lineHints = getHintLine(def);
-
-		int k = lineHints.size();
-		int n = line.size() - 1;
-
-		// DP method
-		vector<vector<int>> dpTable(n +1 , vector<int>(k+1, -1)); 
-		//if (!Fix(n - 1,k - 1, line, lineHints, dpTable)) return false;
-		if (!Fix(n, k, line, lineHints, dpTable)) return false;
-
-		bool changedInPass = true;
-		bool totalChanged = false;
-		vector<int> dummy;
-		while (changedInPass) {
-			changedInPass = Coloring(n, k, line, lineHints, dummy);
-			if (changedInPass) {
-				totalChanged = true;
-			}
-		}
-
-		return totalChanged;
-	}
-
-	// 1 -> yes 0 -> No or can't be determined
-	vector<bool> lineHintsArePlaced(struct LineDef& def) {
-
-	}
 
 
 	void printOriginal() {
