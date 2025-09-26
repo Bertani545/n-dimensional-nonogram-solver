@@ -15,7 +15,10 @@
 
 using namespace std;
 
-
+struct  LineDef {
+	int dim;
+	vector<int> idx;
+};
 
 class Nonogram
 {
@@ -140,28 +143,28 @@ private:
 
 	
 
-	int getHintIndex(int dim, const vector<int>& idx) {
+	int getHintIndex(struct LineDef& def) {
 		int h = 0;
 		for (int i = 0; i < numberDimensions; i++) {
-			if (i == dim) continue;
-			h += idx[i] * hintStrides[dim][i];
+			if (i == def.dim) continue;
+			h += def.idx[i] * hintStrides[def.dim][i];
 		}
 		return h;
 	}
 
-	void writeLine(int dim, vector<int>& idx, vector<int>& newValues) {
-		int length = this->dimensionsSize[dim];
+	void writeLine(struct LineDef& def, vector<int>& newValues) {
+		int length = this->dimensionsSize[def.dim];
 		
 		// Get offset
 		int offset = 0;
 		for (int i = 0; i < this->numberDimensions; i++) {
-			if (i == dim) continue;
-			if (idx[i] >= this->dimensionsSize[i] || idx[i] < 0) throw std::invalid_argument("idx content not valid for getLine");
-			offset += idx[i] * this->strides[i];
+			if (i == def.dim) continue;
+			if (def.idx[i] >= this->dimensionsSize[i] || def.idx[i] < 0) throw std::invalid_argument("idx content not valid for getLine");
+			offset += def.idx[i] * this->strides[i];
 		}
 
 		for (int i = 0; i < length; i++)
-			this->unsolvedData[offset + i * this->strides[dim]] = newValues[i];
+			this->unsolvedData[offset + i * this->strides[def.dim]] = newValues[i];
 
 	}
 
@@ -255,10 +258,10 @@ private:
 		return changed;
 	}
 
-	bool lineSolver(int dim, vector<int>& idx, vector<int>& modifiedEntries) {
-		vector<int> line = getLine(dim, idx, false);
+	bool lineSolver(struct LineDef& def, vector<int>& modifiedEntries) {
+		vector<int> line = getLine(def, false);
 		line.insert(line.begin(), {0}); 
-		vector<int> lineHints = getHintLine(dim, idx);
+		vector<int> lineHints = getHintLine(def);
 /*
 		cout << "Line: "<< endl;
 		for (int e : line) cout << e  << " ";
@@ -286,36 +289,36 @@ private:
 
 		if (totalChanged) {
 			line.erase(line.begin());
-			writeLine(dim, idx, line);
+			writeLine(def, line);
 			return true;
 		}
 		//cout << "Nothig aout of this one" << endl;
 		return false;
 	}
 
-	bool isTrivial (int dim, vector<int>& idx) {
-		vector<int> lineHints = this->getHintLine(dim, idx);
+	bool isTrivial (struct LineDef& def) {
+		vector<int> lineHints = this->getHintLine(def);
 		if (lineHints[0] == 0) return true;
 		int total = lineHints.size() - 1;
 		for (int hint : lineHints)
 			total += hint;
-		if (total == this->dimensionsSize[dim]) return true;
+		if (total == this->dimensionsSize[def.dim]) return true;
 		return false;
 	}
 
 	// Assumed trivial fromt he beggining
-	void solveTrivial(int dim, vector<int>& idx) {
-		vector<int> lineHints = this->getHintLine(dim, idx);
+	void solveTrivial(struct LineDef& def) {
+		vector<int> lineHints = this->getHintLine(def);
 
 		vector<int> newLine;
 		if (lineHints.size() == 1) {
 			if (lineHints[0] == 0) 
-				newLine = vector<int>(this->dimensionsSize[dim], 0);
+				newLine = vector<int>(this->dimensionsSize[def.dim], 0);
 			else
-				newLine = vector<int>(this->dimensionsSize[dim], 1);
+				newLine = vector<int>(this->dimensionsSize[def.dim], 1);
 		}
 		else {
-			newLine = vector<int>(this->dimensionsSize[dim], 0);
+			newLine = vector<int>(this->dimensionsSize[def.dim], 0);
 			int i = 0;
 			for (int hint : lineHints) {
 				for (hint; hint > 0; hint--, i++) {
@@ -324,23 +327,23 @@ private:
 				i++;
 			}
 		}
-		writeLine(dim, idx, newLine);
+		writeLine(def, newLine);
 	}
 
-	float getHeuristic(int dim,  vector<int>& idx) {
-		vector<int> line = this->getLine(dim, idx, false);
-		vector<int> lineHints = this->getHintLine(dim, idx);
+	float getHeuristic(struct LineDef& def) {
+		vector<int> line = this->getLine(def, false);
+		vector<int> lineHints = this->getHintLine(def);
 
 		float he = 0;
 		// Many hints
 		for (int e : lineHints) {
-			he += ((float) e )/ ((float) this->dimensionsSize[dim]);
+			he += ((float) e )/ ((float) this->dimensionsSize[def.dim]);
 		}
 
 		// Many solved squares
 		for (int e : line) {
 			if (e < 0) continue;
-			he += ((float) e )/ ((float) this->dimensionsSize[dim]);
+			he += ((float) e )/ ((float) this->dimensionsSize[def.dim]);
 		}
 		return he;
 	}
@@ -370,17 +373,18 @@ private:
 		return tuples;
 	}
 
-	using Item = std::pair<float, std::pair<int, std::vector<int>>>;
+	//using Item = std::pair<float, std::pair<int, std::vector<int>>>;
+	using Item = std::pair<float, struct LineDef>;
 	// We know a.second.second and b.second.second are equal in size but must differ somewhere
 	struct Compare {
 		bool operator()(const Item& a, const Item& b) const {
 			if (a.first != b.first)
 				return a.first < b.first; // bigger priority value = higher priority
-			if (a.second.first != b.second.first)
-				return a.second.first < b.second.first;
+			if (a.second.dim != b.second.dim)
+				return a.second.dim < b.second.dim;
 			int i = 0;
-			while (a.second.second[i] == b.second.second[i]) i++;
-			return a.second.second[i] < b.second.second[i];
+			while (a.second.idx[i] == b.second.idx[i]) i++;
+			return a.second.idx[i] < b.second.idx[i];
 		}
 	};
 
@@ -404,10 +408,11 @@ private:
 			auto tuples = generateLineIndexTuples(dim);
 
 			for (auto& coords : tuples) {
-				if (isTrivial(dim, coords)) {
-					this->solveTrivial(dim, coords);
+				LineDef def = {dim, coords};
+				if (isTrivial(def)) {
+					this->solveTrivial(def);
 				} else {
-					float heuristic = this->getHeuristic(dim, coords);
+					float heuristic = this->getHeuristic(def);
 					Item toSolve = {heuristic, {dim, coords}};
 					nextAnalyze.insert(toSolve);
 				}
@@ -424,30 +429,31 @@ private:
 			modifiedEntries.clear();
 			const auto& top = *nextAnalyze.begin(); // Maybe
 			auto [priority, inner] = top;
-			auto [dim_id, idx_old] = inner;
+			struct LineDef old_line = inner;
 			nextAnalyze.erase(nextAnalyze.begin());
 
 
- 
-			bool solvedAnything = lineSolver(dim_id, idx_old, modifiedEntries);
+ 			
+			bool solvedAnything = lineSolver(old_line, modifiedEntries);
 			if (!solvedAnything) continue;
 			//this->printSolved();
 
 			// Build the next ones to try
 			
 			for (int idx : modifiedEntries) {
-				vector<int> coords = idx_old;
-				coords[dim_id] = idx;
+				vector<int> coords = old_line.idx;
+				coords[old_line.dim] = idx;
 
 				for (int d2 = 0; d2 < numberDimensions; d2++) {
-					if (d2 == dim_id) continue;
-					float heuristic = this->getHeuristic(d2, coords);
+					if (d2 == old_line.dim) continue;
+					struct LineDef newLine = {d2, coords};
+					float heuristic = this->getHeuristic(newLine);
 					Item toSolve = {heuristic, {d2, coords}};
 
 					// Chek for update
 					auto it = std::find_if(nextAnalyze.begin(), nextAnalyze.end(), [&toSolve](const Item& x){
-						return x.second.first == toSolve.second.first &&
-								x.second.second == toSolve.second.second;
+						return x.second.dim == toSolve.second.dim &&
+								x.second.idx == toSolve.second.idx;
 					});
 
 					if (it != nextAnalyze.end()) {
@@ -508,18 +514,18 @@ public:
 	~Nonogram(){};
 
 	// In which direction dim would you like to solve and which of all possible lines
-	vector<int> getHintLine(int dim, const vector<int>& idx) {
-		if (idx.size() != this->numberDimensions) {
+	vector<int> getHintLine(struct LineDef& def) {
+		if (def.idx.size() != this->numberDimensions) {
 			throw std::invalid_argument("idx size must be numberDimensions");
 		}
 
-		if (dim >= this->numberDimensions) {
+		if (def.dim >= this->numberDimensions) {
 			throw std::invalid_argument("No valid dimension");
 		}
 
 
-		int h = getHintIndex(dim, idx);
-		return hints[dim][h];
+		int h = getHintIndex(def);
+		return hints[def.dim][h];
 	}
 
 	int getValue(vector<int> idx) {
@@ -654,17 +660,19 @@ public:
 	}
 
 
-	// Modifed and checks if still valid
-	bool lineChecker(int dim, vector<int>& idx) {
+	// Receives a modified line, constructs the hints with the mod
+	// Brings back the ambiguity and checks if still valid
+	//Only for building a random one
+	bool lineChecker(struct LineDef& def) {
 		// Modify the hint
-		vector<int> line = getLine(dim, idx, true);
+		vector<int> line = getLine(def, true);
 		line.insert(line.begin(), {0}); 
-		int hintIdx = getHintIndex(dim, idx);
-		this->hints[dim][hintIdx] = computeLine(line);
-		vector<int> lineHints = getHintLine(dim, idx);
+		int hintIdx = getHintIndex(def);
+		this->hints[def.dim][hintIdx] = computeLine(line);
+		vector<int> lineHints = getHintLine(def);
 
 
-		line[dim+1] = -1; // Insert the ambiguity
+		line[def.dim+1] = -1; // Insert the ambiguity
 		int k = lineHints.size();
 		int n = line.size() - 1;
 
@@ -701,8 +709,8 @@ public:
 	    // For each dimension, check the line containing this cell
 		for (int dim = 0; dim < this->numberDimensions; ++dim) {
 	        vector<int> idx = coords; // cords[dim] is variable
-
-	        if (!lineChecker(dim, idx)) {
+	        struct LineDef def = {dim, idx};
+	        if (!lineChecker(def)) {
 	            return false; // line unsolvable
 	        }
 	    }
@@ -741,8 +749,6 @@ public:
 				currIdx = distribution(generator);
 				this->data[currIdx] = 1;
 
-
-
 				if (checkCellConsistency(currIdx)) {
 					totalPlaced += 1.0;
 					currCover = totalPlaced / floatTotal;
@@ -777,39 +783,60 @@ public:
 		return hints[dim][r];
 	}
 
-	vector<int> getLine(int dim, vector<int>& idx, bool solved = true) {
-		int length = this->dimensionsSize[dim];
+	vector<int> getLine(struct LineDef& def, bool solved = true) {
+		int length = this->dimensionsSize[def.dim];
 		vector<int> line;
 		
 		// Get offset
 		int offset = 0;
 		for (int i = 0; i < this->numberDimensions; i++) {
-			if (i == dim) continue;
-			if (idx[i] >= this->dimensionsSize[i] || idx[i] < 0) throw std::invalid_argument("idx content not valid for getLine");
-			offset += idx[i] * this->strides[i];
+			if (i == def.dim) continue;
+			if (def.idx[i] >= this->dimensionsSize[i] || def.idx[i] < 0) throw std::invalid_argument("idx content not valid for getLine");
+			offset += def.idx[i] * this->strides[i];
 		}
 		if (solved)
 			for (int i = 0; i < length; i++) 
-				line.push_back(this->data[offset + i * this->strides[dim]]);				
+				line.push_back(this->data[offset + i * this->strides[def.dim]]);				
 		else
 			for (int i = 0; i < length; i++)
-				line.push_back(this->unsolvedData[offset + i * this->strides[dim]]);
+				line.push_back(this->unsolvedData[offset + i * this->strides[def.dim]]);
 
 		return line;
 	}
 
-	vector<int> solveLine(int dim, vector<int>& idx) {
-		vector<int> temp;
-		if (lineSolver(dim, idx, temp))
-		{
-			return this->getLine(dim, idx, false);
-		}
-		else {
-			cout << "No square was placed" << endl;
+	// 1 -> yes, 0-> unsolvable
+	bool lineCanBeModified(struct LineDef& def) {
+		// Modify the hint
+		vector<int> line = getLine(def, true);
+		line.insert(line.begin(), {0}); 
+		vector<int> lineHints = getHintLine(def);
+
+		int k = lineHints.size();
+		int n = line.size() - 1;
+
+		// DP method
+		vector<vector<int>> dpTable(n +1 , vector<int>(k+1, -1)); 
+		//if (!Fix(n - 1,k - 1, line, lineHints, dpTable)) return false;
+		if (!Fix(n, k, line, lineHints, dpTable)) return false;
+
+		bool changedInPass = true;
+		bool totalChanged = false;
+		vector<int> dummy;
+		while (changedInPass) {
+			changedInPass = Coloring(n, k, line, lineHints, dummy);
+			if (changedInPass) {
+				totalChanged = true;
+			}
 		}
 
-		return {};
+		return totalChanged;
 	}
+
+	// 1 -> yes 0 -> No or can't be determined
+	vector<bool> lineHintsArePlaced(struct LineDef& def) {
+
+	}
+
 
 	void printOriginal() {
 		cout << endl << "Original:" << endl; 
