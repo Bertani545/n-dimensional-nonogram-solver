@@ -26,6 +26,12 @@ enum class Color {
 	Black = 1,
 };
 
+enum class HintState {
+	unsolved,
+	solved
+};
+
+
 
 class Nonogram
 {
@@ -868,6 +874,150 @@ public:
 		}
 	}
 
+
+	// ---------------- Picross behaviour -----------
+	// true, then the line should light blue
+	// false, remains black
+	bool lineCanBeModified(struct LineDef& def) {
+		// Modify the hint
+		vector<Color> line = getLine(def, false);
+		line.insert(line.begin(), {Color::White}); 
+		vector<int> lineHints = getHintLine(def);
+
+		int k = lineHints.size();
+		int n = line.size() - 1;
+
+		// DP method
+		vector<vector<int>> dpTable(n +1 , vector<int>(k+1, -1)); 
+		//if (!Fix(n - 1,k - 1, line, lineHints, dpTable)) return false;
+		if (!Fix(n, k, line, lineHints, dpTable)) return false; // Should return false given a bad input
+
+		bool changedInPass = true;
+		vector<int> dummy;
+		while (changedInPass) {
+			changedInPass = Coloring(n, k, line, lineHints, dummy);
+			if (changedInPass) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	// HintState::solved -> yes HintState::unsolved -> No or can't be determined
+	// Imitates picross behaviour to the best of my knowledge
+	// return solved ONLY if the block is between Color::White
+	// If all hints are placed, return all as solved, even if no Color::White is placed
+	// if a block exceed not according to the hints, return all as unsolved
+	vector<HintState> lineHintsArePlaced(struct LineDef& def) {
+		vector<Color> line = getLine(def, false);
+		vector<int> lineHints = getHintLine(def);
+		line.push_back(Color::White);
+
+		vector<pair<int,int>> blackBlocks; // {start, length}
+		int run = 0;
+		int start = -1;
+		for (int i = 0; i < line.size(); i++) {
+		    if (line[i] == Color::Black) {
+		    	if (run == 0) start = i;
+		        run++;
+		    } else {
+		        if (run > 0) {
+		            blackBlocks.push_back({start, run});
+		            run = 0;
+		        }
+		    }
+		}
+		if (run > 0) blackBlocks.push_back({start, run});
+
+
+		// case of Hint 0
+		if (blackBlocks.empty() && lineHints[0] == 0) return {HintState::solved};
+
+
+		// Too many blocks
+		if (blackBlocks.size() > lineHints.size()) return vector<HintState>(lineHints.size(), HintState::unsolved);
+
+		// Same number of blocks
+		if (blackBlocks.size() == lineHints.size()) {
+			bool allSolved = true;
+			for (int i = 0; i < blackBlocks.size(); i++) {
+				if (blackBlocks[i].second > lineHints[i])
+					return vector<HintState>(lineHints.size(), HintState::unsolved); // All placed, but at least one is not correct
+				if (blackBlocks[i].second < lineHints[i]){
+					allSolved = false;
+					break;
+				}
+			}
+			if (allSolved) return vector<HintState>(lineHints.size(), HintState::solved);
+		}
+
+		// For when the hints are not completed or are less blocks
+		// We want to see which hints can be mapped to which blocks with no ambiguity
+		// A hint must only map to one block
+		// No more than 1 hint must map to the same block
+		// If that is true, then the hint is solved if it's surrounded by Color::White 
+		vector<HintState> states(lineHints.size(), HintState::unsolved);
+
+		// Create a vector with blocks surrounded by white (or border)
+		vector<pair<int,int>> actualBlocks;
+		for (pair<int, int> block : blackBlocks) {
+			int start = block.first;
+			int end = block.first + block.second - 1;
+			// Save only the ones defined by the user
+			if ((start-1 < 0 || line[start-1] == Color::White) &&
+				(end+1 == line.size() || line[end+1] == Color::White)) {
+				actualBlocks.push_back(block);
+			}
+		}
+
+
+
+
+		for(pair<int, int> block : actualBlocks) {
+			int total_possible = 0;
+			int start = block.first;
+			int end = block.first + block.second - 1;
+			// Use Fix to check i
+			int hint_id = -1;
+
+			for (int i = 0; i < lineHints.size(); i++) {
+				if (lineHints[i] != block.second) continue; // Not a possible match, different size
+
+				vector<Color> lineAfter(line.begin() + end + 1, line.end());
+				vector<int> hintsAfter(lineHints.begin() + i + 1, lineHints.end());
+				int nA = lineAfter.size()-1;
+				int kA = hintsAfter.size();
+
+				vector<Color> lineBefore;
+				lineBefore = start == 0 ? vector<Color>(0) : vector<Color>(line.begin(), line.begin() + start -1);
+				lineBefore.insert(lineBefore.begin(), {Color::White}); 
+				vector<int> hintsBefore;
+				hintsBefore = i == 0 ? vector<int>(0) : vector<int>(lineHints.begin() , lineHints.begin() + i);
+				int nB = lineBefore.size()-1;
+				int kB = hintsBefore.size();
+
+
+
+				vector<vector<int>> dpTableB(nB +1 , vector<int>(kB+1, -1));
+				vector<vector<int>> dpTableA(nA +1 , vector<int>(kA+1, -1));
+				// If i can place the rest in whats left of the line, then this block correspond to the hint
+				if (Fix(nA, kA, lineAfter, hintsAfter, dpTableA) && Fix(nB, kB, lineBefore, hintsBefore, dpTableB)) {
+					total_possible++;
+					hint_id = i;
+				}
+
+			}
+			// If only one hint corresponde to the block, then we can call it solved
+			if (total_possible == 1) {
+				states[hint_id] = HintState::solved;
+			}
+
+		}
+
+
+		return states;
+	}
 };
 
 
