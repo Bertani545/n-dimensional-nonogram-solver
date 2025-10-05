@@ -12,25 +12,11 @@
 #include<random>
 #include <chrono> 
 
+#include"dataDef.hpp"
+#include"updatablePriorityQueue.hpp"
+
 
 using namespace std;
-
-struct  LineDef {
-	int dim;
-	vector<int> idx;
-};
-
-enum class Color {
-	Undefined = -1,
-	White = 0,
-	Black = 1,
-};
-
-enum class HintState {
-	unsolved,
-	solved
-};
-
 
 
 class Nonogram
@@ -344,7 +330,7 @@ private:
 		writeLine(def, newLine);
 	}
 
-	float getHeuristic(struct LineDef& def) {
+	float getHeuristic(struct LineDef& def, bool modifiable) {
 		vector<Color> line = this->getLine(def, false);
 		vector<int> lineHints = this->getHintLine(def);
 
@@ -359,7 +345,10 @@ private:
 			if (e == Color::Undefined) continue;
 			he += ((float) e )/ ((float) this->dimensionsSize[def.dim]);
 		}
-		return he;
+		// Up in the stack if it can be modified
+		float mod = modifiable * 2 - 1;
+
+		return he + mod;
 	}
 
 	vector<vector<int>> generateLineIndexTuples(int dim) {
@@ -387,20 +376,6 @@ private:
 		return tuples;
 	}
 
-	//using Item = std::pair<float, std::pair<int, std::vector<int>>>;
-	using Item = std::pair<float, struct LineDef>;
-	// We know a.second.second and b.second.second are equal in size but must differ somewhere
-	struct Compare {
-		bool operator()(const Item& a, const Item& b) const {
-			if (a.first != b.first)
-				return a.first < b.first; // bigger priority value = higher priority
-			if (a.second.dim != b.second.dim)
-				return a.second.dim < b.second.dim;
-			int i = 0;
-			while (a.second.idx[i] == b.second.idx[i]) i++;
-			return a.second.idx[i] < b.second.idx[i];
-		}
-	};
 
 	// Will try to solve the nonogram from the lists
 	// if impossible or it does not equal the original data, returns false
@@ -412,7 +387,7 @@ private:
 		this->unsolvedData = vector<Color>(totalMult, Color::Undefined);
 
 		//priority_queue<Item, std::vector<Item>, Compare> nextAnalyze;
-		set<Item, Compare> nextAnalyze; // To allow updates
+		UpdatablePriorityQueue nextAnalyze;
 
 		// Create all the possible lines
 		// Solve the obvious ones
@@ -426,9 +401,10 @@ private:
 				if (isTrivial(def)) {
 					this->solveTrivial(def);
 				} else {
-					float heuristic = this->getHeuristic(def);
-					Item toSolve = {heuristic, {dim, coords}};
-					nextAnalyze.insert(toSolve);
+					struct LineDef linedef = {dim, coords};
+					bool mody = this->lineCanBeModified(linedef);
+					float heuristic = this->getHeuristic(def, mody);
+					nextAnalyze.insertOrUpdate(heuristic, mody, {dim, coords});
 				}
 			}
 		}
@@ -441,13 +417,12 @@ private:
 		
 		while (!nextAnalyze.empty()) {
 			modifiedEntries.clear();
-			const auto& top = *nextAnalyze.begin(); // Maybe
-			auto [priority, inner] = top;
-			struct LineDef old_line = inner;
-			nextAnalyze.erase(nextAnalyze.begin());
+			const auto& top = nextAnalyze.top(); // Maybe
+			auto [old_line,  priority, _] = top;
+			nextAnalyze.pop();
 
-
- 			
+ 			// we do not use the solvability for this one because we chnage various
+ 			// entries at the same time. We let that data for user input and update
 			bool solvedAnything = lineSolver(old_line, modifiedEntries);
 			if (!solvedAnything) continue;
 			//this->printSolved();
@@ -461,22 +436,10 @@ private:
 				for (int d2 = 0; d2 < numberDimensions; d2++) {
 					if (d2 == old_line.dim) continue;
 					struct LineDef newLine = {d2, coords};
-					float heuristic = this->getHeuristic(newLine);
-					Item toSolve = {heuristic, {d2, coords}};
+					bool isSolvable = this->lineCanBeModified(newLine);
+					float heuristic = this->getHeuristic(newLine, isSolvable);
 
-					// Chek for update
-					auto it = std::find_if(nextAnalyze.begin(), nextAnalyze.end(), [&toSolve](const Item& x){
-						return x.second.dim == toSolve.second.dim &&
-								x.second.idx == toSolve.second.idx;
-					});
-
-					if (it != nextAnalyze.end()) {
-						nextAnalyze.erase(it);
-						nextAnalyze.insert(toSolve);
-					} else {
-						nextAnalyze.insert(toSolve);
-					}
-
+					nextAnalyze.insertOrUpdate(heuristic, isSolvable, {d2, coords});
 					
 				}
 			}
