@@ -45,13 +45,20 @@ struct Compare {
 
 // Key that ignores priority (only d2 + coords matter)
 struct Key {
-	struct LineDef line;
+    struct LineDef line;
 
-	Key() = default;
+    Key() = default;
     Key(const struct LineDef& l) : line(l) {}
 
     bool operator==(const Key& other) const {
-        return line.dim == other.line.dim && line.idx == other.line.idx;
+        if (line.dim != other.line.dim) return false;
+        bool eqVec;
+        for (int i = 0; i < line.idx.size(); i++) {
+            if (i == line.dim) continue;
+            if (line.idx[i] != other.line.idx[i])
+                return false;
+        }
+        return true;
     }
 };
 
@@ -60,8 +67,10 @@ struct KeyHash {
     std::size_t operator()(const Key& k) const {
         std::size_t h1 = std::hash<int>()(k.line.dim);
         std::size_t h2 = 0;
-        for (int c : k.line.idx) {
-            h2 ^= std::hash<int>()(c) + 0x9e3779b9 + (h2 << 6) + (h2 >> 2);
+        for (int i = 0; i < k.line.idx.size(); i++) {
+            if (i == k.line.dim) continue;
+            int c = k.line.idx[i];
+             h2 ^= std::hash<int>()(c) + 0x9e3779b9 + (h2 << 6) + (h2 >> 2);
         }
         return h1 ^ h2;
     }
