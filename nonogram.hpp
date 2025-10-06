@@ -899,7 +899,7 @@ public:
 
 
 		// Too many blocks
-		if (blackBlocks.size() > lineHints.size()) return vector<HintState>(lineHints.size(), HintState::unsolved);
+		//if (blackBlocks.size() > lineHints.size()) return vector<HintState>(lineHints.size(), HintState::unsolved);
 
 		// Same number of blocks
 		if (blackBlocks.size() == lineHints.size()) {
